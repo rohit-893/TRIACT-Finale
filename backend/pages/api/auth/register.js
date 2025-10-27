@@ -1,13 +1,20 @@
 import connectDB from "../../../lib/db.js";
 import User from "../../../models/User.js";
 import Shop from "../../../models/Shop.js";
+import handleCors from '../../../middleware/cors.js'; // <-- ADD IMPORT
 
 
 export default async function handler(req, res) {
- 
-  if (req.method !== "POST") {
-    return res.status(405).json({ message: "Method Not Allowed" });
-  }
+  await handleCors(req, res); // <-- ADD THIS LINE FIRST
+  
+    // --- ADD THIS LOG ---
+    console.log("Received request method:", req.method); // Keep logging if desired
+  
+    if (req.method !== "POST") {
+      console.error("Method was not POST, returning 405.");
+      return res.status(405).json({ message: "Method Not Allowed" });
+    }
+
 
   await connectDB();
   const { name, email, password, role, shopId } = req.body;

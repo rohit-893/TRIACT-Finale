@@ -1,16 +1,17 @@
 import connectDB from "../../../lib/db.js";
 import User from "../../../models/User.js";
 import { signToken } from "../../../lib/auth.js";
+import handleCors from '../../../middleware/cors.js'; // <-- ADD IMPORT
 
 
 export default async function handler(req, res) {
-  
+  await handleCors(req, res); // <-- ADD THIS LINE FIRST
 
   // --- ADD THIS LOG ---
-  console.log("Received request method:", req.method);
+  console.log("Received request method:", req.method); // Keep logging if desired
 
   if (req.method !== "POST") {
-    console.error("Method was not POST, returning 405."); // Add error log
+    console.error("Method was not POST, returning 405.");
     return res.status(405).json({ message: "Method Not Allowed" });
   }
 
