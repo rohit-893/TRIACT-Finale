@@ -190,7 +190,7 @@ async function handler(req, res) {
 
         // Generate Invoice PDF
         const shop = await Shop.findById(shopId).session(session);
-        const invoicesDir = path.join(process.cwd(), "public", "invoices");
+        const invoicesDir = path.join('/tmp', 'invoices'); // New way: Use /tmp directory
         fs.mkdirSync(invoicesDir, { recursive: true });
         const pdfPath = path.join(invoicesDir, `invoice-${savedOrder._id}.pdf`);
         const relativePdfPath = `/invoices/invoice-${savedOrder._id}.pdf`;
@@ -204,7 +204,7 @@ async function handler(req, res) {
           customerName: savedOrder.customerName,
           billerName: savedOrder.billerName,
           total: savedOrder.total, // Revenue
-          pdfPath: relativePdfPath,
+          pdfPath: relativePdfPath, // Save the potentially invalid path (see note)
         });
         await invoice.save({ session });
 
