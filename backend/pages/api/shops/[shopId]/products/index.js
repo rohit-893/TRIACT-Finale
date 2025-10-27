@@ -2,7 +2,7 @@ import connectDB from "../../../../../lib/db.js";
 import Product from "../../../../../models/Product.js";
 import Shop from "../../../../../models/Shop.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
-import handleCors from '../../../middleware/cors.js';
+import handleCors from '../../../../../middleware/cors.js';
 
 async function handler(req, res) {
   // --- ADD THIS LINE ---

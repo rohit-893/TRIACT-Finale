@@ -1,7 +1,7 @@
 import connectDB from "../../../../../lib/db.js";
 import Invoice from "../../../../../models/Invoice.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
-import handleCors from '../../../middleware/cors.js';
+import handleCors from '../../../../../middleware/cors.js';
 
 async function handler(req, res) {
   // --- ADD THIS LINE ---

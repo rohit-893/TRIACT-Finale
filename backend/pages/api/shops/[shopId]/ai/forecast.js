@@ -5,7 +5,7 @@ import Product from "../../../../../models/Product.js";
 import Order from "../../../../../models/Order.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
 import mongoose from "mongoose";
-import handleCors from '../../../middleware/cors.js';
+import handleCors from '../../../../../middleware/cors.js';
 
 // The number of days to look back for sales history
 const FORECAST_DAYS = 90;

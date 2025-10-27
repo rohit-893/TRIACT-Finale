@@ -3,7 +3,7 @@ import Order from "../../../../models/Order.js";
 import Product from "../../../../models/Product.js";
 import { ownerMiddleware } from "../../../../lib/auth.js";
 import mongoose from "mongoose";
-import handleCors from '../../../middleware/cors.js';
+import handleCors from '../../../../middleware/cors.js';
 
 async function handler(req, res) {
   // --- ADD THIS LINE ---

@@ -2,7 +2,7 @@ import connectDB from "../../../../../lib/db.js";
 import Product from "../../../../../models/Product.js";
 import Shop from "../../../../../models/Shop.js";
 import { ownerMiddleware } from "../../../../../lib/auth.js"; // Use general auth, not owner-only
-import handleCors from '../../../middleware/cors.js';
+import handleCors from '../../../../../middleware/cors.js';
 
 // This is the updated handler with role-based permissions
 async function handler(req, res) {
