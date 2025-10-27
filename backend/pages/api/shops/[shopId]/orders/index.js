@@ -9,7 +9,7 @@ import Shop from "../../../../../models/Shop.js";
 import Notification from "../../../../../models/Notification.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
 import mongoose from "mongoose";
-import handleCors from '../../../../../middleware/cors.js';
+
 
 // --- PDF Generation function remains the same ---
 async function generateInvoicePDF(order, shop, filePath) {
@@ -104,9 +104,7 @@ async function generateInvoicePDF(order, shop, filePath) {
 
 
 async function handler(req, res) {
-  // --- ADD THIS LINE ---
-  await handleCors(req, res); // Run the CORS middleware
-  // --------------------
+  
   const { shopId } = req.query;
   if (req.user.shopId !== shopId) {
     return res.status(403).json({ message: "Access denied." });

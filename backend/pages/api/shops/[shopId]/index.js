@@ -1,12 +1,10 @@
 import connectDB from "../../../../lib/db.js";
 import Shop from "../../../../models/Shop.js";
 import { authMiddleware, ownerMiddleware } from "../../../../lib/auth.js";
-import handleCors from '../../../../middleware/cors.js';
+
 
 async function handler(req, res) {
-  // --- ADD THIS LINE ---
-  await handleCors(req, res); // Run the CORS middleware
-  // --------------------
+  
   const { shopId } = req.query;
 
   if (req.user.shopId !== shopId) {

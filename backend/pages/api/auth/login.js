@@ -1,12 +1,10 @@
 import connectDB from "../../../lib/db.js";
 import User from "../../../models/User.js";
 import { signToken } from "../../../lib/auth.js";
-import handleCors from '../../../middleware/cors.js';
+
 
 export default async function handler(req, res) {
-  // --- ADD THIS LINE ---
-  await handleCors(req, res); // Run the CORS middleware
-  // --------------------
+  
 
   // --- ADD THIS LOG ---
   console.log("Received request method:", req.method);
