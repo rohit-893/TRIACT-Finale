@@ -52,6 +52,11 @@ async function handler(req, res) {
         .status(404)
         .json({ message: "Invoice file not found on server (temporary storage). It might have expired or failed to save." });
     }
+    // --- ADD THESE HEADERS ---
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // HTTP 1.1.
+    res.setHeader('Pragma', 'no-cache'); // HTTP 1.0.
+    res.setHeader('Expires', '0'); // Proxies.
+    // --- END ADD HEADERS ---
 
     // --- CHANGE: Stream the file ---
     res.setHeader("Content-Type", "application/pdf");
@@ -61,7 +66,6 @@ async function handler(req, res) {
     );
 
     const fileStream = fs.createReadStream(filePath);
-
     // Handle errors during streaming
     fileStream.on('error', (err) => {
         console.error('Error streaming PDF file:', err);
