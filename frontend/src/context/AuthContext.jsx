@@ -12,8 +12,7 @@ import shopService from "../services/shopService.js";
 
 const AuthContext = createContext();
 
-// --- Define the chat storage key here or import it if you move it to a shared constants file ---
-const CHAT_STORAGE_KEY = "triactAiChatHistory"; // Key used in AiChat.jsx
+const CHAT_STORAGE_KEY = "triactAiChatHistory";
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -32,7 +31,7 @@ export const AuthProvider = ({ children }) => {
           const details = await shopService.getShopDetails(decodedUser.shopId);
           setShopDetails(details);
         } else {
-            setShopDetails(null); // Explicitly clear shop details if no shopId
+          setShopDetails(null); // Explicitly clear shop details if no shopId
         }
       } else {
         // Token expired
@@ -66,13 +65,11 @@ export const AuthProvider = ({ children }) => {
     }
   }, [loadDataFromToken]);
 
-
   const login = async (email, password) => {
     const { token: newToken } = await authService.login(email, password);
     localStorage.setItem("token", newToken);
     setToken(newToken);
-    // Reload user data after setting the token (will trigger useEffect)
-    // No need to call loadDataFromToken directly here, useEffect handles it
+    await loadDataFromToken(newToken);
   };
 
   const logout = () => {
