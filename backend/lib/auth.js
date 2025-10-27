@@ -36,6 +36,9 @@ export const authMiddleware = (handler) => async (req, res) => {
     req.user = decoded;
     return handler(req, res);
   } catch (error) {
+    // --- ADD THIS LINE ---
+    console.error("JWT Verification Error:", error.message, "Token:", token);
+    // --------------------
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };

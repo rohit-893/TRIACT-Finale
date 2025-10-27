@@ -5,11 +5,15 @@ import Product from "../../../../../models/Product.js";
 import Order from "../../../../../models/Order.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
 import mongoose from "mongoose";
+import handleCors from '../../../../../middleware/cors.js';
 
 // The number of days to look back for sales history
 const FORECAST_DAYS = 90;
 
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   if (req.method !== "GET") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }

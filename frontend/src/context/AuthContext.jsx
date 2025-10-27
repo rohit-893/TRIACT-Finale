@@ -12,8 +12,7 @@ import shopService from "../services/shopService.js";
 
 const AuthContext = createContext();
 
-// --- Define the chat storage key here or import it if you move it to a shared constants file ---
-const CHAT_STORAGE_KEY = "triactAiChatHistory"; // Key used in AiChat.jsx
+const CHAT_STORAGE_KEY = "triactAiChatHistory";
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -32,7 +31,7 @@ export const AuthProvider = ({ children }) => {
           const details = await shopService.getShopDetails(decodedUser.shopId);
           setShopDetails(details);
         } else {
-            setShopDetails(null); // Explicitly clear shop details if no shopId
+          setShopDetails(null); // Explicitly clear shop details if no shopId
         }
       } else {
         // Token expired
@@ -66,13 +65,42 @@ export const AuthProvider = ({ children }) => {
     }
   }, [loadDataFromToken]);
 
-
   const login = async (email, password) => {
-    const { token: newToken } = await authService.login(email, password);
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    // Reload user data after setting the token (will trigger useEffect)
-    // No need to call loadDataFromToken directly here, useEffect handles it
+    // --- ADD LOG ---
+    console.log("Attempting login...");
+    try { // Add try block if not already present around the whole function
+      const { token: newToken } = await authService.login(email, password);
+
+      // --- ADD LOG ---
+      console.log("Login successful, received token:", newToken);
+
+      if (newToken) { // Add a check to ensure token exists
+        localStorage.setItem("token", newToken);
+
+        // --- ADD LOG ---
+        console.log("Token saved to localStorage. Checking storage:", localStorage.getItem("token"));
+
+        setToken(newToken); // Update state
+        await loadDataFromToken(newToken); // Load user data (this might still fail due to CORS on shop details)
+
+         // --- ADD LOG ---
+         console.log("User data loaded after setting token.");
+
+      } else {
+         // --- ADD LOG ---
+         console.error("Login succeeded but no token received!");
+         throw new Error("No token received from server.");
+      }
+    } catch (error) {
+       // --- ADD LOG ---
+       console.error("Error during login process:", error);
+       // Re-throw the error so the calling component (Login.jsx) can catch it
+       throw error;
+    }
+    // const { token: newToken } = await authService.login(email, password);
+    // localStorage.setItem("token", newToken);
+    // setToken(newToken);
+    // await loadDataFromToken(newToken);
   };
 
   const logout = () => {

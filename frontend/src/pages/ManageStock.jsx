@@ -202,7 +202,7 @@ const ManageStock = () => {
             )}
             {["price", "cost", "stock"].map((field) => (
               <div key={field}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 capitalize">
+                <label className="block text-sm font-semibold text-grey-700 mb-2 capitalize">
                   {field === "cost" ? "Cost (Purchase Price)" : field}
                 </label>
                 <input
@@ -212,7 +212,7 @@ const ManageStock = () => {
                   onChange={(e) => setEditFormData({ ...editFormData, [field]: e.target.value })}
                   required
                   disabled={user.role !== "owner" && field !== "stock"}
-                  className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all ${
+                  className={`w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all text-black ${
                     user.role !== "owner" && field !== "stock" ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                 />
