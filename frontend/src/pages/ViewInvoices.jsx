@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../hooks/useAuth";
 import shopService from "../services/shopService"; // For getInvoices
-import api from "../services/api"; // For authenticated PDF fetch
+// REMOVED: import api from "../services/api"; // No longer need separate fetch here
 import { MagnifyingGlassIcon, DocumentArrowDownIcon } from "@heroicons/react/24/outline";
 
 const ViewInvoices = () => {
@@ -10,22 +10,22 @@ const ViewInvoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null); // General page error
-  const [pdfError, setPdfError] = useState(null); // PDF specific error
+  // REMOVED: const [pdfError, setPdfError] = useState(null); // PDF specific error removed
 
   // State for filters
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [billerFilter, setBillerFilter] = useState("");
   const [customerNameFilter, setCustomerNameFilter] = useState("");
-  const [invoiceIdFilter, setInvoiceIdFilter] = useState(""); // Can search by Invoice or Order ID
+  const [invoiceIdFilter, setInvoiceIdFilter] = useState("");
 
   // Fetch initial invoice list
   const fetchInvoices = useCallback(async () => {
     if (!user?.shopId) {
-      setLoading(false); // Stop loading if no shopId
+      setLoading(false);
       return;
     }
-    setError(null); // Clear previous page errors
+    setError(null);
     try {
       setLoading(true);
       const data = await shopService.getInvoices(user.shopId);
@@ -50,84 +50,16 @@ const ViewInvoices = () => {
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
       const invoiceDate = new Date(invoice.date);
-
-      // Date range filter
       if (startDate && invoiceDate < new Date(startDate + "T00:00:00")) return false;
       if (endDate && invoiceDate > new Date(endDate + "T23:59:59")) return false;
-      // Text filters (case-insensitive)
       if (billerFilter && !invoice.billerName?.toLowerCase().includes(billerFilter.toLowerCase())) return false;
       if (customerNameFilter && !invoice.customerName?.toLowerCase().includes(customerNameFilter.toLowerCase())) return false;
-      // ID filter (check both Invoice _id and Order ID)
       if (invoiceIdFilter && !(invoice.orderId?.toString().includes(invoiceIdFilter) || invoice._id?.toString().includes(invoiceIdFilter))) return false;
-
       return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort newest first
   }, [invoices, startDate, endDate, billerFilter, customerNameFilter, invoiceIdFilter]);
 
-  // --- Function to fetch and open PDF using authenticated request ---
-  const handleViewPdf = async (invoiceId) => {
-    setPdfError(null); // Clear previous PDF errors
-    if (!user?.shopId) {
-      setPdfError("User or Shop ID missing.");
-      return;
-    }
-    try {
-      const url = `/api/shops/${user.shopId}/invoices/${invoiceId}`;
-      console.log("Fetching PDF from:", url);
-
-      // Make authenticated request expecting blob data
-      const response = await api.get(url, {
-        responseType: 'blob', // Expect binary data
-      });
-
-      // --- Robust check for PDF content type ---
-      if (response.data.type !== 'application/pdf') {
-          // If the server sent a JSON error (like 404), try to parse it
-          if (response.data.type === "application/json") {
-             try {
-                const errorJson = JSON.parse(await response.data.text());
-                throw new Error(errorJson.message || 'Server returned non-PDF content.');
-             } catch (parseError) {
-                 // Fallback if parsing fails
-                 throw new Error('Server returned non-PDF content.');
-             }
-          } else {
-             // Handle other unexpected content types
-             throw new Error('Server returned unexpected content type: ' + response.data.type);
-          }
-      }
-      // --- End check ---
-
-
-      // Create a URL for the received blob
-      const file = new Blob([response.data], { type: 'application/pdf' });
-      const fileURL = URL.createObjectURL(file);
-
-      // Open the PDF in a new tab
-      window.open(fileURL, '_blank');
-
-      // Optional: Revoke the object URL after some time to free memory
-      // Browsers often handle this, but explicit revocation can be safer
-      setTimeout(() => URL.revokeObjectURL(fileURL), 10000); // e.g., after 10 seconds
-
-    } catch (err) {
-      console.error("Error fetching or opening PDF:", err);
-      // Attempt to parse error response if it's a blob of JSON (e.g., from a 404/500)
-      if (err.response && err.response.data instanceof Blob && err.response.data.type === "application/json") {
-         try {
-            const errorJson = JSON.parse(await err.response.data.text());
-            setPdfError(`Failed to load PDF: ${errorJson.message || 'Server error'}`);
-         } catch (parseError) {
-             setPdfError("Failed to load PDF. Check server logs for details.");
-         }
-      } else {
-         // Handle network errors or non-blob/non-JSON errors
-         setPdfError(err.response?.data?.message || err.message || "Failed to load PDF. Check network or server status.");
-      }
-    }
-  };
-  // --- End PDF handling function ---
-
+  // REMOVED: const handleViewPdf = async (invoiceId) => { ... } // Function removed
 
   // Loading state display
   if (loading) return <div className="text-center mt-10 text-gray-500">Loading invoices...</div>;
@@ -139,9 +71,7 @@ const ViewInvoices = () => {
 
       {/* Display Page-level error if initial fetch failed */}
       {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-center">{error}</div>}
-      {/* Display PDF-specific error if PDF loading fails */}
-      {pdfError && <div className="p-3 bg-orange-100 text-orange-700 rounded-md text-center">{pdfError}</div>}
-
+      {/* REMOVED: pdfError display */}
 
       {/* Filter Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-xl shadow-sm border border-gray-200">
@@ -193,15 +123,22 @@ const ViewInvoices = () => {
                 <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{new Date(invoice.date).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</td>
                 <td className="px-6 py-4 text-gray-700 font-semibold whitespace-nowrap">{formatCurrency(invoice.total)}</td>
                 <td className="px-6 py-4 text-center whitespace-nowrap">
-                  {/* --- Changed to Button --- */}
-                  <button
-                    onClick={() => handleViewPdf(invoice._id)} // Call the fetch function
-                    className="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-900 font-medium disabled:text-gray-400 transition-colors"
-                    title={`View PDF for Order ${invoice.orderId}`}
+                  {/* --- Changed back to simple Link --- */}
+                  <a
+                    href={invoice.pdfPath} // Use the Blob URL directly
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center space-x-1 font-medium ${
+                      invoice.pdfPath
+                        ? "text-indigo-600 hover:text-indigo-900"
+                        : "text-gray-400 cursor-not-allowed" // Style if no URL
+                    }`}
+                    title={invoice.pdfPath ? `View PDF for Order ${invoice.orderId}` : "PDF not available"}
+                    onClick={(e) => !invoice.pdfPath && e.preventDefault()} // Prevent click if no URL
                   >
                     <DocumentArrowDownIcon className="w-5 h-5" />
                     <span>View PDF</span>
-                  </button>
+                  </a>
                   {/* --- End Change --- */}
                 </td>
               </tr>
