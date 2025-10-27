@@ -7,6 +7,14 @@ import { authMiddleware } from "../../../../../lib/auth";
 
 async function handler(req, res) {
   
+  // --- ADDED: Handle OPTIONS explicitly if needed (though handleCors should cover it) ---
+   if (req.method === 'OPTIONS') {
+     console.log(`Invoice Route: Responding OK to OPTIONS preflight.`);
+     res.status(200).end();
+     return;
+   }
+  // --- END ADDED ---
+
   if (req.method !== "GET") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }
