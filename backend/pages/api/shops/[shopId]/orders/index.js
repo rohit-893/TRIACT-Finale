@@ -103,6 +103,9 @@ async function generateInvoicePDF(order, shop, filePath) {
 
 
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   const { shopId } = req.query;
   if (req.user.shopId !== shopId) {
     return res.status(403).json({ message: "Access denied." });

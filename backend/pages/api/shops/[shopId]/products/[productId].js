@@ -5,6 +5,9 @@ import { ownerMiddleware } from "../../../../../lib/auth.js"; // Use general aut
 
 // This is the updated handler with role-based permissions
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   const { shopId, productId } = req.query;
 
   // Security Check: Ensure the user belongs to the shop

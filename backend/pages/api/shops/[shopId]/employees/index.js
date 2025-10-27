@@ -4,6 +4,9 @@ import Shop from "../../../../../models/Shop.js";
 import { ownerMiddleware } from "../../../../../lib/auth.js";
 
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   const { shopId } = req.query;
 
   if (req.user.shopId !== shopId) {

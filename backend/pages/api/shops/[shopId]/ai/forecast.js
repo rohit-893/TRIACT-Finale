@@ -10,6 +10,9 @@ import mongoose from "mongoose";
 const FORECAST_DAYS = 90;
 
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   if (req.method !== "GET") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }

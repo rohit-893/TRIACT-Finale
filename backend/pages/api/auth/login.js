@@ -3,15 +3,9 @@ import User from "../../../models/User.js";
 import { signToken } from "../../../lib/auth.js";
 
 export default async function handler(req, res) {
-  // --- ADD THIS BLOCK ---
-  if (req.method === 'OPTIONS') {
-    // Handle CORS preflight request
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Or use your specific frontend URL
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    return res.status(200).json({}); // Respond OK
-  }
-  // --- END OF BLOCK ---
+  // --- ADD THIS LINE ---
+  await handleCors(req, res); // Run the CORS middleware
+  // --------------------
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }
