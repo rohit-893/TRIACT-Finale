@@ -3,7 +3,6 @@ import { useAuth } from "../hooks/useAuth";
 import shopService from "../services/shopService";
 import { MagnifyingGlassIcon, DocumentArrowDownIcon } from "@heroicons/react/24/outline";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 const ViewInvoices = () => {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
@@ -103,10 +102,18 @@ const ViewInvoices = () => {
                 <td className="px-6 py-4 text-gray-500">{new Date(invoice.date).toLocaleString()}</td>
                 <td className="px-6 py-4 text-gray-500">{formatCurrency(invoice.total)}</td>
                 <td className="px-6 py-4 text-right">
-                  <a href={`${API_BASE}${invoice.pdfPath}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-900 font-medium">
-                    <DocumentArrowDownIcon className="w-5 h-5" />
-                    <span>View PDF</span>
-                  </a>
+                  {/* --- MODIFY THIS LINK --- */}
+              <a
+                // Construct the API endpoint URL dynamically
+                href={`${import.meta.env.VITE_API_BASE_URL}/api/shops/${user.shopId}/invoices/${invoice._id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-900 font-medium"
+              >
+                <DocumentArrowDownIcon className="w-5 h-5" />
+                <span>View PDF</span>
+              </a>
+              {/* --- END MODIFICATION --- */}
                 </td>
               </tr>
             ))}
