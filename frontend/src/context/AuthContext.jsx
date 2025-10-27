@@ -66,10 +66,41 @@ export const AuthProvider = ({ children }) => {
   }, [loadDataFromToken]);
 
   const login = async (email, password) => {
-    const { token: newToken } = await authService.login(email, password);
-    localStorage.setItem("token", newToken);
-    setToken(newToken);
-    await loadDataFromToken(newToken);
+    // --- ADD LOG ---
+    console.log("Attempting login...");
+    try { // Add try block if not already present around the whole function
+      const { token: newToken } = await authService.login(email, password);
+
+      // --- ADD LOG ---
+      console.log("Login successful, received token:", newToken);
+
+      if (newToken) { // Add a check to ensure token exists
+        localStorage.setItem("token", newToken);
+
+        // --- ADD LOG ---
+        console.log("Token saved to localStorage. Checking storage:", localStorage.getItem("token"));
+
+        setToken(newToken); // Update state
+        await loadDataFromToken(newToken); // Load user data (this might still fail due to CORS on shop details)
+
+         // --- ADD LOG ---
+         console.log("User data loaded after setting token.");
+
+      } else {
+         // --- ADD LOG ---
+         console.error("Login succeeded but no token received!");
+         throw new Error("No token received from server.");
+      }
+    } catch (error) {
+       // --- ADD LOG ---
+       console.error("Error during login process:", error);
+       // Re-throw the error so the calling component (Login.jsx) can catch it
+       throw error;
+    }
+    // const { token: newToken } = await authService.login(email, password);
+    // localStorage.setItem("token", newToken);
+    // setToken(newToken);
+    // await loadDataFromToken(newToken);
   };
 
   const logout = () => {
