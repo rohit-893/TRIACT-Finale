@@ -1,6 +1,7 @@
 import connectDB from "../../../lib/db.js";
 import User from "../../../models/User.js";
 import Shop from "../../../models/Shop.js";
+import handleCors from '../../../middleware/cors.js';
 
 export default async function handler(req, res) {
   // --- ADD THIS LINE ---

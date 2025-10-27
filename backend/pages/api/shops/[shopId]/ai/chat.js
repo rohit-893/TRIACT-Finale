@@ -12,6 +12,7 @@ import User from "../../../../../models/User.js";
 
 // 1. Import the Gemini model function instead of Ollama
 import { getGeminiModel } from "../../../../../lib/gemini.js";
+import handleCors from '../../../middleware/cors.js';
 
 // A security-focused map of allowed models
 const ALLOWED_MODELS = {

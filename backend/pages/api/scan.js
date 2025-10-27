@@ -1,6 +1,7 @@
 import connectDB from "../../lib/db.js";
 import Product from "../../models/Product.js";
 import { authMiddleware } from "../../lib/auth.js";
+import handleCors from '../../../middleware/cors.js';
 
 const parseInvoiceText = (text) => {
   const lines = text.split("\n").filter((line) => line.trim() !== "");
@@ -21,6 +22,9 @@ const parseInvoiceText = (text) => {
 };
 
 async function handler(req, res) {
+  // --- ADD THIS LINE ---
+    await handleCors(req, res); // Run the CORS middleware
+    // --------------------
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }

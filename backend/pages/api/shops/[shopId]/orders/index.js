@@ -9,6 +9,7 @@ import Shop from "../../../../../models/Shop.js";
 import Notification from "../../../../../models/Notification.js";
 import { authMiddleware } from "../../../../../lib/auth.js";
 import mongoose from "mongoose";
+import handleCors from '../../../middleware/cors.js';
 
 // --- PDF Generation function remains the same ---
 async function generateInvoicePDF(order, shop, filePath) {
