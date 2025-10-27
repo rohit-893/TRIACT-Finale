@@ -1,3 +1,4 @@
+// frontend/src/components/NavBar.jsx
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -28,7 +29,8 @@ const Dropdown = ({ buttonContent, children, widthClass = "w-56", onOpen = () =>
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={handleToggle}
-        className="flex items-center space-x-1 text-gray-700 hover:text-indigo-600 font-medium transition-colors"
+        // --- THIS LINE IS UPDATED ---
+        className="flex items-center space-x-1 text-gray-700 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors"
       >
         {buttonContent}
         <ChevronDownIcon className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -75,7 +77,7 @@ const NavBar = () => {
   };
 
   return (
-    <nav className="bg-white dark:bg-gray-900 shadow-sm">
+    <nav className="bg-white dark:bg-gray-900 shadow-sm relative z-30">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
         {/* Logo */}
        <Link

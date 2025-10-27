@@ -173,7 +173,7 @@ const ManageStock = () => {
             )}
             {["name", "category", "price", "cost", "stock"].map((field) => (
               <div key={field}>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 capitalize">
+                <label className="block text-sm font-semibold text-white-700 mb-2 capitalize">
                   {field === "cost" ? "Cost (Purchase Price)" : field}
                 </label>
                 <input
@@ -182,7 +182,7 @@ const ManageStock = () => {
                   value={newProduct[field]}
                   onChange={(e) => setNewProduct({ ...newProduct, [field]: e.target.value })}
                   required
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-slate-500 focus:border-slate-500 transition-all text-black"
                 />
               </div>
             ))}
@@ -432,5 +432,6 @@ const ManageStock = () => {
     </div>
   );
 };
+
 
 export default ManageStock;

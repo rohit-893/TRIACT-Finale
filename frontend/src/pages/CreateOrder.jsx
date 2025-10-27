@@ -238,8 +238,7 @@ const CreateOrder = () => {
 
           {/* Cart Section */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200 sticky top-6">
-              {/* Cart Header */}
+            <div className="bg-white rounded-xl shadow-xl sticky top-24 border border-gray-200 flex flex-col max-h-[calc(100vh-7rem)]">
               <div className="bg-slate-800 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -267,7 +266,7 @@ const CreateOrder = () => {
               </div>
 
               {/* Cart Items */}
-              <div className="p-4 h-[calc(100vh-500px)] overflow-y-auto">
+              <div className="p-4 flex-1 overflow-y-auto">
                 {cart.length === 0 ? (
                   <div className="text-center py-16">
                     <ShoppingCart className="mx-auto text-gray-300 mb-4" size={64} />
