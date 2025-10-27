@@ -6,6 +6,10 @@ export default async function handler(req, res) {
   // --- ADD THIS LINE ---
   await handleCors(req, res); // Run the CORS middleware
   // --------------------
+
+  // --- ADD THIS LOG ---
+  console.log("Received request method:", req.method);
+
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method Not Allowed" });
   }
