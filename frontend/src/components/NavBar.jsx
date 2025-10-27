@@ -130,30 +130,77 @@ const NavBar = () => {
               )}
 
               {/* Notifications & Profile */}
-              <div className="flex items-center space-x-4 border-l border-gray-200 dark:border-gray-700 pl-6">
-                <Dropdown buttonContent={<Bell className="w-6 h-6 text-gray-600 dark:text-gray-300" />} onClose={handleMarkNotificationsRead} widthClass="w-80">
-                  <div className="p-3 font-semibold border-b border-gray-200 dark:border-gray-700 text-sm">Notifications</div>
-                  <ul className="py-1 max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
-                      notifications.map((n) => (
-                        <li key={n._id} className={`px-4 py-3 border-b last:border-b-0 rounded-md ${!n.isRead ? "bg-indigo-50 dark:bg-indigo-800" : "bg-white dark:bg-gray-900"}`}>
-                          <p className={`text-sm ${!n.isRead ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-300"}`}>
-                            {n.message}
-                          </p>
-                          <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
-                        </li>
-                      ))
-                    ) : (
-                      <li className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">You're all caught up!</li>
-                    )}
-                  </ul>
-                </Dropdown>
+              {/* Notifications & Profile */}
+<div className="flex items-center space-x-4 border-l border-gray-200 dark:border-gray-700 pl-6">
+  {/* --- Notifications Dropdown --- */}
+  <Dropdown
+    buttonContent={
+      <div className="relative">
+        <Bell className="w-6 h-6 text-gray-700 dark:text-gray-200 hover:text-indigo-500 transition-colors cursor-pointer" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shadow-sm">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </div>
+    }
+    onClose={handleMarkNotificationsRead}
+    widthClass="w-80"
+  >
+    {/* Dropdown header */}
+    <div className="p-3 font-semibold border-b border-gray-200 dark:border-gray-700 text-sm flex justify-between items-center bg-gray-50 dark:bg-gray-800 rounded-t-md">
+      <span className="text-gray-800 dark:text-gray-100">Notifications</span>
+      {unreadCount > 0 && (
+        <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+          {unreadCount} new
+        </span>
+      )}
+    </div>
 
-                <span className="text-gray-800 dark:text-gray-200 font-medium">Hi, {user.name}</span>
-                <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white px-4 py-1 rounded-lg transition-colors">
-                  Logout
-                </button>
-              </div>
+    {/* Notification list */}
+    <ul className="py-1 max-h-80 overflow-y-auto bg-white dark:bg-gray-900 rounded-b-md">
+      {notifications.length > 0 ? (
+        notifications.map((n) => (
+          <li
+            key={n._id}
+            className={`px-4 py-3 border-b last:border-b-0 transition-all duration-200 rounded-md cursor-pointer ${
+              !n.isRead
+                ? "bg-indigo-50 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-800"
+                : "bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
+            }`}
+          >
+            <p
+              className={`text-sm leading-snug ${
+                !n.isRead
+                  ? "font-semibold text-gray-900 dark:text-gray-100"
+                  : "text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              {n.message}
+            </p>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {new Date(n.createdAt).toLocaleString()}
+            </div>
+          </li>
+        ))
+      ) : (
+        <li className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+          You're all caught up! 🎉
+        </li>
+      )}
+    </ul>
+  </Dropdown>
+
+  {/* --- Greeting + Logout (unchanged) --- */}
+  <span className="text-gray-800 dark:text-gray-200 font-medium">Hi, {user.name}</span>
+  <button
+    onClick={handleLogout}
+    className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white px-4 py-1 rounded-lg transition-colors"
+  >
+    Logout
+  </button>
+</div>
+
             </>
           ) : (
             <>
