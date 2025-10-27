@@ -21,7 +21,8 @@ async function handler(req, res) {
 
   const { shopId, invoiceId } = req.query;
 
-  if (req.user.shopId !== shopId) {
+  // Authentication check (req.user is added by authMiddleware)
+  if (!req.user || req.user.shopId !== shopId) {
     return res
       .status(403)
       .json({ message: "Access denied to this shop's resources." });
@@ -36,28 +37,50 @@ async function handler(req, res) {
       return res.status(404).json({ message: "Invoice not found." });
     }
 
-    const filePath = path.join(process.cwd(), "public", invoice.pdfPath);
+    // --- CHANGE: Construct path to /tmp ---
+    // Extract filename from the potentially misleading saved path
+    const filename = path.basename(invoice.pdfPath); // e.g., "invoice-68ffbabd4b5f34cd0ea95f0e.pdf"
+    const filePath = path.join('/tmp', 'invoices', filename); // Construct path to /tmp/invoices/FILENAME
+    // --- END CHANGE ---
+    console.log(`Attempting to read invoice PDF from: ${filePath}`);
 
     if (!fs.existsSync(filePath)) {
       console.error(
-        `File not found for invoice ${invoiceId} at path ${filePath}`
+        `Invoice file NOT FOUND in /tmp for invoice ${invoiceId} at path ${filePath}`
       );
       return res
         .status(404)
-        .json({ message: "Invoice file not found on server." });
+        .json({ message: "Invoice file not found on server (temporary storage). It might have expired or failed to save." });
     }
 
+    // --- CHANGE: Stream the file ---
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `inline; filename="invoice-${invoice.orderId}.pdf"`
+      `inline; filename="${filename}"` // Use the extracted filename
     );
 
     const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+
+    // Handle errors during streaming
+    fileStream.on('error', (err) => {
+        console.error('Error streaming PDF file:', err);
+        // Check if headers were already sent
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Error reading invoice file.' });
+        } else {
+            // If headers are sent, we can't send a JSON error, just end the stream abruptly
+            res.end();
+        }
+    });
+    // --- END CHANGE ---
   } catch (error) {
-    console.error("Get Invoice Error:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Get Invoice [invoiceId] Error:", error);
+    if (!res.headersSent) {
+        res.status(500).json({ message: "Internal Server Error" });
+    } else {
+         res.end();
+    }
   }
 }
 
