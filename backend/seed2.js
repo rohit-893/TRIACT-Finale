@@ -3,22 +3,47 @@ import mongoose from "mongoose";
 import User from "./models/User.js";
 import Shop from "./models/Shop.js";
 import Product from "./models/Product.js";
-import Order from "./models/Order.js"; // Keep import to clear the collection
-import Invoice from "./models/Invoice.js"; // Keep import to clear the collection
-import Notification from "./models/Notification.js"; // Keep import to clear the collection
+import Order from "./models/Order.js";
+import Invoice from "./models/Invoice.js";
+import Notification from "./models/Notification.js";
 import path from 'path';
 import fs from 'fs';
+
+/**
+ * Generates a random date within a given range.
+ * @param {Date} start - The start date.
+ * @param {Date} end - The end date.
+ * @returns {Date} A random date between start and end.
+ */
+const getRandomDate = (start, end) => {
+  return new Date(
+    start.getTime() + Math.random() * (end.getTime() - start.getTime())
+  );
+};
+
+// --- CONFIGURATION ---
+// We'll set a fixed "today" date for reproducible seeding.
+// This is set to Nov 14, 2025, as per your context.
+const today = new Date('2025-11-14T12:00:00.000Z');
+const ninetyDaysAgo = new Date(today);
+ninetyDaysAgo.setDate(today.getDate() - 90); // ~August 16, 2025
+
+const NUMBER_OF_ORDERS_TO_CREATE = 250;
+const OWNER_EMAIL = "rohit123@gmail.com";
+const OWNER_PASSWORD = "Rohit1234";
+
+// --- END CONFIGURATION ---
 
 const seedData = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    console.log("MongoDB connected for seeding (seed2.js)...");
+    console.log("MongoDB connected for seeding (seed_with_sales.js)...");
 
-    // Clear existing data
+    // --- 1. Clear ALL existing data ---
     console.log("Clearing old data...");
     await Invoice.deleteMany({});
     await Notification.deleteMany({});
-    await Order.deleteMany({}); // Clear any previous orders
+    await Order.deleteMany({});
     await Product.deleteMany({});
     await User.deleteMany({});
     await Shop.deleteMany({});
@@ -28,56 +53,56 @@ const seedData = async () => {
      if (fs.existsSync(invoicesDir)) {
        const files = fs.readdirSync(invoicesDir);
        for (const file of files) {
-         if (file !== '.gitkeep') { // Keep the .gitkeep file
+         if (file !== '.gitkeep') {
             fs.unlinkSync(path.join(invoicesDir, file));
          }
        }
        console.log("Cleared old invoice files.");
      }
-
     console.log("Old data cleared.");
 
-    // --- Create Specific Owner ---
+    // --- 2. Create Specific Owner ---
     const owner = await User.create({
       name: "Rohit Kumar",
-      email: "rohit123@gmail.com",
-      passwordHash: "Rohit1234", // Will be hashed by pre-save hook
+      email: OWNER_EMAIL,
+      passwordHash: OWNER_PASSWORD,
       role: "owner",
     });
     console.log(`Owner ${owner.name} created.`);
 
-    // --- Create Specific Shop ---
+    // --- 3. Create Specific Shop ---
     const shop = await Shop.create({
       shopName: "Rohit Medical Store",
       ownerId: owner._id,
-      address: "Koramangala, Bengaluru", // Added Bengaluru for clarity
+      address: "Koramangala, Bengaluru",
     });
     await User.findByIdAndUpdate(owner._id, { shopId: shop._id });
     console.log(`Shop ${shop.shopName} created and linked to owner.`);
 
-    // --- Create Generic Employees ---
+    // --- 4. Create Generic Employees ---
     const employee1 = await User.create({
-      name: "Staff Member 1",
-      email: "staff1@rohitmed.com",
-      passwordHash: "Password123", // Will be hashed
+      name: "Arjun Gupta",
+      email: "arjun@rohitmed.com",
+      passwordHash: "Password123",
       role: "employee",
       shopId: shop._id,
       salary: { amount: 15000, status: 'pending' },
     });
     const employee2 = await User.create({
-      name: "Staff Member 2",
-      email: "staff2@rohitmed.com",
-      passwordHash: "Password123", // Will be hashed
+      name: "Sneha Reddy",
+      email: "sneha@rohitmed.com",
+      passwordHash: "Password123",
       role: "employee",
       shopId: shop._id,
       salary: { amount: 16000, status: 'pending' },
     });
+    const billerNames = [employee1.name, employee2.name];
     console.log("Generic employees created.");
 
     // Link employees to shop
     shop.employees.push(employee1._id, employee2._id);
 
-    // --- Create 100 Medical Products ---
+    // --- 5. Create 100 Medical Products ---
     console.log("Creating 100 medical products...");
     const productsData = [
       // Pain Relief (10)
@@ -138,12 +163,12 @@ const seedData = async () => {
       { shopId: shop._id, name: "Eno Fruit Salt Lemon Sachet", category: "Digestive Health", price: 10, cost: 7, stock: 500 },
       { shopId: shop._id, name: "Pudin Hara Pearls", category: "Digestive Health", price: 55, cost: 42, stock: 200 },
       { shopId: shop._id, name: "Gelusil MPS Antacid Antigas Liquid 200ml", category: "Digestive Health", price: 110, cost: 88, stock: 110 },
-      { shopId: shop._id, name: "Omez 20 Capsule", category: "Digestive Health", price: 60, cost: 45, stock: 180 }, // Example - Often prescription but common OTC request
+      { shopId: shop._id, name: "Omez 20 Capsule", category: "Digestive Health", price: 60, cost: 45, stock: 180 },
       { shopId: shop._id, name: "Cremaffin Plus Syrup 225ml", category: "Digestive Health", price: 190, cost: 150, stock: 70 },
       { shopId: shop._id, name: "Isabgol Husk (Psyllium) 100g", category: "Digestive Health", price: 140, cost: 110, stock: 90 },
       { shopId: shop._id, name: "Eldoper Capsule", category: "Digestive Health", price: 25, cost: 18, stock: 250 },
-      { shopId: shop._id, name: "Vizylac Capsule", category: "Digestive Health", price: 80, cost: 60, stock: 160 }, // Probiotic
-      { shopId: shop._id, name: "Unienzyme Tablet", category: "Digestive Health", price: 70, cost: 55, stock: 170 }, // Digestive Enzyme
+      { shopId: shop._id, name: "Vizylac Capsule", category: "Digestive Health", price: 80, cost: 60, stock: 160 },
+      { shopId: shop._id, name: "Unienzyme Tablet", category: "Digestive Health", price: 70, cost: 55, stock: 170 },
 
       // Personal Care (15)
       { shopId: shop._id, name: "Himalaya Neem Face Wash 100ml", category: "Personal Care", price: 140, cost: 110, stock: 90 },
@@ -165,13 +190,13 @@ const seedData = async () => {
       // Baby Care (10)
       { shopId: shop._id, name: "Johnson's Baby Powder 200g", category: "Baby Care", price: 150, cost: 120, stock: 80 },
       { shopId: shop._id, name: "Himalaya Baby Lotion 200ml", category: "Baby Care", price: 180, cost: 145, stock: 70 },
-      { shopId: shop._id, name: "Pampers Active Baby Diapers Medium", category: "Baby Care", price: 600, cost: 480, stock: 50 }, // Pack price
-      { shopId: shop._id, name: "MamyPoko Pants Extra Absorb Diapers Large", category: "Baby Care", price: 550, cost: 440, stock: 60 }, // Pack price
+      { shopId: shop._id, name: "Pampers Active Baby Diapers Medium", category: "Baby Care", price: 600, cost: 480, stock: 50 },
+      { shopId: shop._id, name: "MamyPoko Pants Extra Absorb Diapers Large", category: "Baby Care", price: 550, cost: 440, stock: 60 },
       { shopId: shop._id, name: "Sebamed Baby Rash Cream 50ml", category: "Baby Care", price: 250, cost: 200, stock: 65 },
       { shopId: shop._id, name: "Chicco Baby Moments Soap 100g", category: "Baby Care", price: 80, cost: 65, stock: 100 },
       { shopId: shop._id, name: "Woodward's Gripe Water 130ml", category: "Baby Care", price: 65, cost: 50, stock: 120 },
       { shopId: shop._id, name: "Himalaya Baby Wipes 72s", category: "Baby Care", price: 190, cost: 150, stock: 90 },
-      { shopId: shop._id, name: "Farlex Baby Drops", category: "Baby Care", price: 100, cost: 80, stock: 75 }, // Example name
+      { shopId: shop._id, name: "Farlex Baby Drops", category: "Baby Care", price: 100, cost: 80, stock: 75 },
       { shopId: shop._id, name: "Bonnisan Liquid 100ml", category: "Baby Care", price: 85, cost: 68, stock: 110 },
 
       // Health Devices & Others (10)
@@ -180,16 +205,16 @@ const seedData = async () => {
       { shopId: shop._id, name: "Dr. Morepen BG-03 Gluco One Strips (50)", category: "Health Devices", price: 850, cost: 680, stock: 40 },
       { shopId: shop._id, name: "Digital Thermometer", category: "Health Devices", price: 150, cost: 110, stock: 100 },
       { shopId: shop._id, name: "Hot Water Bag", category: "Health Devices", price: 250, cost: 190, stock: 60 },
-      { shopId: shop._id, name: "Durex Condoms - Extra Time", category: "Sexual Wellness", price: 150, cost: 120, stock: 90 }, // Example
-      { shopId: shop._id, name: "Manforce Condoms - Dotted", category: "Sexual Wellness", price: 80, cost: 60, stock: 120 }, // Example
+      { shopId: shop._id, name: "Durex Condoms - Extra Time", category: "Sexual Wellness", price: 150, cost: 120, stock: 90 },
+      { shopId: shop._id, name: "Manforce Condoms - Dotted", category: "Sexual Wellness", price: 80, cost: 60, stock: 120 },
       { shopId: shop._id, name: "Prega News Pregnancy Test Kit", category: "Wellness", price: 60, cost: 45, stock: 150 },
       { shopId: shop._id, name: "ORS Apple Drink 200ml", category: "Wellness", price: 35, cost: 25, stock: 200 },
       { shopId: shop._id, name: "Electral Powder Sachet", category: "Wellness", price: 22, cost: 16, stock: 300 },
 
        // Eye/Ear Care (5)
-      { shopId: shop._id, name: "Ciplox Eye/Ear Drops 5ml", category: "Eye/Ear Care", price: 20, cost: 15, stock: 100 }, // Example, often prescription
+      { shopId: shop._id, name: "Ciplox Eye/Ear Drops 5ml", category: "Eye/Ear Care", price: 20, cost: 15, stock: 100 },
       { shopId: shop._id, name: "Refresh Tears Eye Drops 10ml", category: "Eye/Ear Care", price: 140, cost: 110, stock: 80 },
-      { shopId: shop._id, name: "Otocin-Ear Drops 5ml", category: "Eye/Ear Care", price: 50, cost: 38, stock: 90 }, // Example name
+      { shopId: shop._id, name: "Otocin-Ear Drops 5ml", category: "Eye/Ear Care", price: 50, cost: 38, stock: 90 },
       { shopId: shop._id, name: "Clearwax Ear Drops 10ml", category: "Eye/Ear Care", price: 75, cost: 58, stock: 70 },
       { shopId: shop._id, name: "I-Kul Eye Drops 10ml", category: "Eye/Ear Care", price: 55, cost: 40, stock: 110 },
 
@@ -199,20 +224,73 @@ const seedData = async () => {
       { shopId: shop._id, name: "Patanjali Divya Swasari Pravahi 200ml", category: "Ayurvedic", price: 100, cost: 80, stock: 70 },
       { shopId: shop._id, name: "Zandu Pancharishta 450ml", category: "Ayurvedic", price: 140, cost: 115, stock: 80 },
       { shopId: shop._id, name: "Baidyanath Triphala Churna 100g", category: "Ayurvedic", price: 50, cost: 38, stock: 120 },
-
-
     ];
     const products = await Product.insertMany(productsData);
     shop.products = products.map((p) => p._id);
     await shop.save(); // Saves employees and products to the shop document
     console.log(`${products.length} products created.`);
 
-    // --- NO ORDERS CREATED ---
-    console.log("Skipping order generation as requested.");
+    // --- 6. Generate Sample Orders with Profit Data ---
+    console.log(`Generating ${NUMBER_OF_ORDERS_TO_CREATE} random orders...`);
 
-    console.log("Database seeding (seed2.js) completed successfully! 🎉");
+    const customerNames = [
+      "Aarav Sharma", "Vihaan Singh", "Vivaan Gupta", "Aditya Kumar", "Arjun Patel",
+      "Saanvi Sharma", "Aanya Singh", "Myra Gupta", "Aarohi Kumar", "Diya Patel",
+      "Rohan Mehra", "Priya Venkatesh", "Sameer Ali", "Anika Reddy", "Walk-in Customer"
+    ];
+    
+    const ordersToCreate = [];
+
+    for (let i = 0; i < NUMBER_OF_ORDERS_TO_CREATE; i++) {
+      let orderTotalRevenue = 0;
+      let orderTotalCost = 0;
+      const orderItems = [];
+      const itemCount = Math.floor(Math.random() * 5) + 1; // 1 to 5 items per order
+
+      for (let j = 0; j < itemCount; j++) {
+        const randomProduct = products[Math.floor(Math.random() * products.length)];
+        const sellQuantity = Math.floor(Math.random() * 3) + 1; // 1 to 3 units
+
+        const itemRevenue = randomProduct.price * sellQuantity;
+        const itemCost = randomProduct.cost * sellQuantity;
+
+        orderTotalRevenue += itemRevenue;
+        orderTotalCost += itemCost;
+
+        orderItems.push({
+          productId: randomProduct._id,
+          name: randomProduct.name,
+          quantity: sellQuantity,
+          price: randomProduct.price,
+          cost: randomProduct.cost, // Store cost at time of sale
+        });
+      }
+
+      const orderTotalProfit = orderTotalRevenue - orderTotalCost;
+      const randomBiller = billerNames[Math.floor(Math.random() * billerNames.length)];
+      const randomCustomer = customerNames[Math.floor(Math.random() * customerNames.length)];
+      const randomDate = getRandomDate(ninetyDaysAgo, today);
+
+      ordersToCreate.push({
+        shopId: shop._id,
+        customerName: randomCustomer,
+        billerName: randomBiller,
+        items: orderItems,
+        total: orderTotalRevenue, // This is the REVENUE
+        totalProfit: orderTotalProfit, // This is the PROFIT
+        date: randomDate,
+      });
+    }
+
+    await Order.insertMany(ordersToCreate);
+    console.log(`${ordersToCreate.length} orders with profit data created.`);
+
+    // --- End of Seeding ---
+    console.log("Database seeding (seed_with_sales.js) completed successfully! 🎉");
+    console.log(`\nLogin with:\nEmail: ${OWNER_EMAIL}\nPassword: ${OWNER_PASSWORD}`);
+
   } catch (error) {
-    console.error("Error during seeding (seed2.js):", error);
+    console.error("Error during seeding (seed_with_sales.js):", error);
   } finally {
     await mongoose.disconnect();
     console.log("MongoDB disconnected.");
