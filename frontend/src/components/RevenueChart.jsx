@@ -9,6 +9,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler, // <-- Make sure to register Filler
 } from "chart.js";
 
 ChartJS.register(
@@ -18,7 +19,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler // <-- Add Filler here for the background gradient
 );
 
 const RevenueChart = ({ data }) => {
@@ -28,40 +30,36 @@ const RevenueChart = ({ data }) => {
       {
         label: "Revenue (₹)",
         data: data.map((item) => item.totalRevenue),
-        fill: true,
+        fill: true, // <-- Set to true to show the gradient
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 400);
-          gradient.addColorStop(0, "rgba(75, 192, 192, 0.4)");
-          gradient.addColorStop(1, "rgba(75, 192, 192, 0)");
+          const gradient = ctx.createLinearGradient(0, 0, 0, 200); // Gradient height
+          gradient.addColorStop(0, "rgba(79, 70, 229, 0.2)"); // Indigo-600 with 20% opacity
+          gradient.addColorStop(1, "rgba(79, 70, 229, 0)"); // Fades to transparent
           return gradient;
         },
-        borderColor: "rgba(75, 192, 192, 1)",
-        tension: 0.4,
-        pointRadius: 4,
-        pointBackgroundColor: "rgba(75, 192, 192, 1)",
-        pointHoverRadius: 6,
+        borderColor: "rgba(79, 70, 229, 1)", // Solid Indigo-600
+        tension: 0.3, // Smoother curve
+        pointRadius: 2,
+        pointBackgroundColor: "rgba(79, 70, 229, 1)",
+        pointHoverRadius: 5,
+        pointHoverBorderWidth: 2,
+        pointHoverBackgroundColor: "white",
       },
     ],
   };
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false, // Allows chart to fill container height
     plugins: {
       legend: {
-        position: "top",
-        labels: {
-          color: "#4B5563", // Tailwind gray-700
-          font: {
-            size: 14,
-            weight: "500",
-          },
-        },
+        display: false, // Hide the legend; the title is clear enough
       },
       title: {
         display: true,
         text: "Revenue Trend (Last 30 Days)",
-        color: "#111827", // Tailwind gray-900
+        color: "#1f2937", // text-gray-800
         font: {
           size: 18,
           weight: "600",
@@ -70,42 +68,48 @@ const RevenueChart = ({ data }) => {
       tooltip: {
         mode: "index",
         intersect: false,
-        backgroundColor: "#111827",
-        titleColor: "#F9FAFB",
-        bodyColor: "#F9FAFB",
+        backgroundColor: "#ffffff", // White background
+        titleColor: "#1f2937", // text-gray-800
+        bodyColor: "#4b5563", // text-gray-600
+        borderColor: "#e5e7eb", // border-gray-200
+        borderWidth: 1,
         padding: 10,
-        cornerRadius: 6,
+        cornerRadius: 8,
+        displayColors: true,
       },
-    },
-    interaction: {
-      mode: "nearest",
-      intersect: false,
     },
     scales: {
       x: {
         ticks: {
-          color: "#6B7280", // Tailwind gray-500
+          color: "#6b7280", // text-gray-500
           font: { size: 12 },
         },
         grid: {
-          color: "rgba(203, 213, 225, 0.3)", // Tailwind gray-300, subtle
+          display: false, // Hide vertical grid lines
+        },
+        border: {
+          color: "#e5e7eb", // border-gray-200
         },
       },
       y: {
         beginAtZero: true,
         ticks: {
-          color: "#6B7280",
+          color: "#6b7280", // text-gray-500
           font: { size: 12 },
         },
         grid: {
-          color: "rgba(203, 213, 225, 0.3)",
+          color: "#f3f4f6", // Faint grid lines (gray-100)
+        },
+        border: {
+          display: false, // Hide Y-axis line
         },
       },
     },
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
+    // Set a fixed height for the chart container
+    <div className="relative h-80 w-full">
       <Line options={options} data={chartData} />
     </div>
   );
