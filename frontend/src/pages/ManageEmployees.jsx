@@ -2,6 +2,40 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 import shopService from "../services/shopService";
 import Modal from "../components/Modal.jsx";
+import { Users, Plus, AlertTriangle } from "lucide-react";
+
+// Reusable input component for cleaner forms
+const FormInput = ({
+  label,
+  name,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  step,
+  required = true,
+  disabled = false,
+}) => (
+  <div className="space-y-2">
+    <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <input
+      id={name}
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      step={step}
+      required={required}
+      disabled={disabled}
+      className={`w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition ${
+        disabled ? "bg-gray-100 cursor-not-allowed" : ""
+      }`}
+    />
+  </div>
+);
 
 const ManageEmployees = () => {
   const { user } = useAuth();
@@ -9,10 +43,12 @@ const ManageEmployees = () => {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
   const [modalError, setModalError] = useState("");
+  const [isLoadingForm, setIsLoadingForm] = useState(false);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -52,6 +88,7 @@ const ManageEmployees = () => {
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     setModalError("");
+    setIsLoadingForm(true);
     try {
       await shopService.addEmployee(user.shopId, {
         ...formData,
@@ -60,25 +97,32 @@ const ManageEmployees = () => {
       setIsAddModalOpen(false);
       fetchEmployees();
     } catch (err) {
-      setModalError(err.response?.data?.message || "An unknown error occurred.");
+      setModalError(
+        err.response?.data?.message || "An unknown error occurred."
+      );
+    } finally {
+      setIsLoadingForm(false);
     }
   };
 
   const handleEditEmployee = async (e) => {
     e.preventDefault();
     setModalError("");
+    setIsLoadingForm(true);
     try {
       const updatedSalary = {
         amount: parseFloat(formData.salary.amount),
-        status: "pending",
       };
+      // We don't reset the status here, just update the amount
       await shopService.updateEmployee(user.shopId, selectedEmployee._id, {
-        salary: updatedSalary,
+        salary: { ...selectedEmployee.salary, ...updatedSalary },
       });
       setIsEditModalOpen(false);
       fetchEmployees();
     } catch (err) {
       setModalError(err.response?.data?.message || "Failed to update salary.");
+    } finally {
+      setIsLoadingForm(false);
     }
   };
 
@@ -96,11 +140,11 @@ const ManageEmployees = () => {
   const handlePaySalary = async (employee) => {
     try {
       await shopService.updateEmployee(user.shopId, employee._id, {
-        salary: { status: "paid" },
+        salary: { ...employee.salary, status: "paid" }, // Keep existing amount
       });
       fetchEmployees();
     } catch (err) {
-      console.error(err);
+      setPageError("Failed to pay salary.");
     }
   };
 
@@ -113,13 +157,13 @@ const ManageEmployees = () => {
       try {
         const updatePromises = employees.map((emp) =>
           shopService.updateEmployee(user.shopId, emp._id, {
-            salary: { status: "pending" },
+            salary: { ...emp.salary, status: "pending" }, // Keep existing amount
           })
         );
         await Promise.all(updatePromises);
         fetchEmployees();
       } catch (err) {
-        console.error(err);
+        setPageError("Failed to reset salaries.");
       }
     }
   };
@@ -139,19 +183,23 @@ const ManageEmployees = () => {
 
   if (loading)
     return (
-      <div className="flex justify-center items-center h-[60vh] text-gray-500 font-medium">
-        Loading employee data...
+      <div className="flex flex-col justify-center items-center h-[80vh]">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600"></div>
+        <p className="mt-4 text-gray-600 font-medium">
+          Loading employee data...
+        </p>
       </div>
     );
   if (pageError)
     return (
-      <div className="text-red-500 text-center font-semibold mt-10">
-        {pageError}
+      <div className="text-center mt-16 p-4 bg-red-50 border border-red-200 rounded-lg max-w-md mx-auto">
+        <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-2" />
+        <p className="text-red-700 text-lg font-semibold">{pageError}</p>
       </div>
     );
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="space-y-6">
       {/* Modals */}
       <Modal
         isOpen={isAddModalOpen}
@@ -160,18 +208,18 @@ const ManageEmployees = () => {
       >
         <form onSubmit={handleAddEmployee} className="space-y-4">
           {modalError && (
-            <p className="text-red-600 bg-red-50 p-2 rounded-md text-sm font-medium">
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
               {modalError}
-            </p>
+            </div>
           )}
-          <inputField
+          <FormInput
             label="Full Name"
             name="name"
             value={formData.name}
             onChange={handleFormChange}
             placeholder="John Doe"
           />
-          <inputField
+          <FormInput
             label="Email"
             name="email"
             type="email"
@@ -179,7 +227,7 @@ const ManageEmployees = () => {
             onChange={handleFormChange}
             placeholder="john@example.com"
           />
-          <inputField
+          <FormInput
             label="Password"
             name="password"
             type="password"
@@ -187,16 +235,21 @@ const ManageEmployees = () => {
             onChange={handleFormChange}
             placeholder="••••••••"
           />
-          <inputField
+          <FormInput
             label="Salary (₹)"
             name="amount"
             type="number"
+            step="0.01"
             value={formData.salary.amount}
             onChange={handleFormChange}
-            placeholder="5000"
+            placeholder="15000"
           />
-          <button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 rounded-xl transition">
-            Add Employee
+          <button
+            type="submit"
+            disabled={isLoadingForm}
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-all font-semibold shadow-md hover:shadow-lg disabled:bg-gray-400"
+          >
+            {isLoadingForm ? "Adding..." : "Add Employee"}
           </button>
         </form>
       </Modal>
@@ -208,44 +261,49 @@ const ManageEmployees = () => {
       >
         <form onSubmit={handleEditEmployee} className="space-y-4">
           {modalError && (
-            <p className="text-red-600 bg-red-50 p-2 rounded-md text-sm font-medium">
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
               {modalError}
-            </p>
+            </div>
           )}
-          <inputField
+          <FormInput
             label="New Salary (₹)"
             name="amount"
             type="number"
+            step="0.01"
             value={formData.salary.amount}
             onChange={handleFormChange}
           />
-          <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-xl transition">
-            Save Changes
+          <button
+            type="submit"
+            disabled={isLoadingForm}
+            className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-all font-semibold shadow-md hover:shadow-lg disabled:bg-gray-400"
+          >
+            {isLoadingForm ? "Saving..." : "Save Changes"}
           </button>
         </form>
       </Modal>
 
       {/* Header + Actions */}
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center space-y-4 md:space-y-0">
-        <h1 className="text-3xl font-bold text-gray-800">Manage Employees</h1>
-        <div className="flex space-x-2">
+        <h1 className="text-4xl font-bold text-gray-900">Manage Employees</h1>
+        <div className="flex space-x-3">
           <button
             onClick={handleResetAllSalaries}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-medium transition"
+            className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
           >
             Reset All to Due
           </button>
           <button
             onClick={openAddModal}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl font-medium transition"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
           >
-            + Add New Employee
+            <Plus size={20} /> Add Employee
           </button>
         </div>
       </div>
 
       {/* Employee Table */}
-      <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-2xl shadow-xl border border-gray-200 bg-white">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-100">
             <tr>
@@ -265,16 +323,18 @@ const ManageEmployees = () => {
                 key={employee._id}
                 className="hover:bg-gray-50 transition-colors"
               >
-                <td className="px-6 py-4 font-medium text-gray-800">
+                <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-800">
                   {employee.name}
                 </td>
-                <td className="px-6 py-4 text-gray-500">{employee.email}</td>
-                <td className="px-6 py-4 text-gray-700">
+                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                  {employee.email}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-700 font-medium">
                   ₹{(employee.salary.amount || 0).toFixed(2)}
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`px-2 inline-flex text-xs font-semibold leading-5 rounded-full ${
+                    className={`px-3 py-1 inline-flex text-xs font-semibold leading-5 rounded-full ${
                       employee.salary.status === "paid"
                         ? "bg-green-100 text-green-800"
                         : "bg-red-100 text-red-800"
@@ -283,24 +343,24 @@ const ManageEmployees = () => {
                     {employee.salary.status === "paid" ? "Paid" : "Due"}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-3 text-sm font-medium">
+                <td className="px-6 py-4 whitespace-nowrap text-right space-x-4 text-sm font-medium">
                   {employee.salary.status === "pending" && (
                     <button
                       onClick={() => handlePaySalary(employee)}
-                      className="text-green-600 hover:text-green-900 transition"
+                      className="text-green-600 hover:text-green-800 transition font-semibold"
                     >
                       Pay Salary
                     </button>
                   )}
                   <button
                     onClick={() => openEditModal(employee)}
-                    className="text-teal-600 hover:text-teal-900 transition"
+                    className="text-indigo-600 hover:text-indigo-800 transition font-semibold"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleRemoveEmployee(employee._id)}
-                    className="text-red-600 hover:text-red-900 transition"
+                    className="text-red-600 hover:text-red-800 transition font-semibold"
                   >
                     Remove
                   </button>
@@ -310,29 +370,19 @@ const ManageEmployees = () => {
           </tbody>
         </table>
         {employees.length === 0 && (
-          <p className="text-center p-6 text-gray-500">
-            No employees found. Add one to get started!
-          </p>
+          <div className="text-center py-16">
+            <Users className="mx-auto text-gray-300 mb-4" size={64} />
+            <p className="text-gray-500 text-lg font-medium">
+              No employees found
+            </p>
+            <p className="text-gray-400 text-sm mt-2">
+              Add one to get started!
+            </p>
+          </div>
         )}
       </div>
     </div>
   );
 };
-
-// Reusable input component for cleaner forms
-const inputField = ({ label, name, value, onChange, type = "text", placeholder }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700">{label}</label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      required
-      className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 transition"
-    />
-  </div>
-);
 
 export default ManageEmployees;
