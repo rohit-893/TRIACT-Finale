@@ -65,6 +65,16 @@ const AiChat = () => {
     setInput("");
     setIsLoading(true);
 
+    // ✅ ADD TIMEOUT
+  const timeoutId = setTimeout(() => {
+    setIsLoading(false);
+    setMessages((prev) => [...prev, {
+      sender: 'ai',
+      text: 'Request timed out. The server is taking too long. Try a simpler question or try again later.'
+    }]);
+  }, 20000); // 15 second timeout
+
+
     try {
       const { answer } = await shopService.getAiChatResponse(
         user.shopId,
