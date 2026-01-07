@@ -1,9 +1,8 @@
 // backend/pages/api/shops/[shopId]/ai/forecast.js
-import connectDB from "../../../../../../../lib/db.js";
-import Product from "../../../../../../../models/Product.js";
-import Order from "../../../../../../../models/Order.js";
-import { authMiddleware } from "../../../../../../../lib/auth.js";
-import { getOpenAIClient } from "../../../../../../../lib/openai.js";
+import connectDB from "../../../../../../lib/db.js";
+import Product from "../../../../../../models/Product.js";
+import Order from "../../../../../../models/Order.js";
+import { authMiddleware } from "../../../../../../lib/auth.js";
 
 async function handler(req, res) {
   if (req.method !== "GET") {
@@ -18,7 +17,7 @@ async function handler(req, res) {
   }
 
   try {
-    console.log("[AI FORECAST] Fetching products and orders...");
+    console.log("[AI FORECAST] Calculating...");
 
     const products = await Product.find({ shopId });
     const ninetyDaysAgo = new Date();
@@ -29,11 +28,6 @@ async function handler(req, res) {
       date: { $gte: ninetyDaysAgo },
     });
 
-    console.log(
-      `[AI FORECAST] Found ${products.length} products and ${orders.length} orders`
-    );
-
-    // Calculate sales velocity for each product
     const productSales = {};
 
     products.forEach((p) => {
@@ -52,40 +46,36 @@ async function handler(req, res) {
       });
     });
 
-    // Calculate forecast for each product
-    const productsWithForecast = await Promise.all(
-      Object.values(productSales).map(async ({ product, totalSold }) => {
-        const avgDailySales = totalSold / 90;
+    const productsWithForecast = Object.values(productSales).map(({ product, totalSold }) => {
+      const avgDailySales = totalSold / 90;
+      let forecastDays = null;
+      let forecastText = "N/A";
 
-        let forecastDays = null;
-        let forecastText = "N/A";
+      if (avgDailySales > 0 && product.stock > 0) {
+        forecastDays = Math.floor(product.stock / avgDailySales);
+        forecastText = `${forecastDays} days`;
+      } else if (product.stock === 0) {
+        forecastText = "Out of stock";
+      } else if (avgDailySales === 0) {
+        forecastText = "No sales data";
+      }
 
-        if (avgDailySales > 0 && product.stock > 0) {
-          forecastDays = Math.floor(product.stock / avgDailySales);
-          forecastText = `${forecastDays} days`;
-        } else if (product.stock === 0) {
-          forecastText = "Out of stock";
-        } else if (avgDailySales === 0) {
-          forecastText = "No sales data";
-        }
+      return {
+        _id: product._id,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        cost: product.cost,
+        stock: product.stock,
+        lowStockThreshold: product.lowStockThreshold,
+        totalSold90Days: totalSold,
+        avgDailySales: parseFloat(avgDailySales.toFixed(2)),
+        forecastDays: forecastDays,
+        forecastText: forecastText,
+      };
+    });
 
-        return {
-          _id: product._id,
-          name: product.name,
-          category: product.category,
-          price: product.price,
-          cost: product.cost,
-          stock: product.stock,
-          lowStockThreshold: product.lowStockThreshold,
-          totalSold90Days: totalSold,
-          avgDailySales: parseFloat(avgDailySales.toFixed(2)),
-          forecastDays: forecastDays,
-          forecastText: forecastText,
-        };
-      })
-    );
-
-    console.log("[AI FORECAST] Forecast calculated for all products");
+    console.log("[AI FORECAST] Complete");
 
     res.status(200).json({
       products: productsWithForecast,

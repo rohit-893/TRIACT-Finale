@@ -1,9 +1,10 @@
-import connectDB from "../../../../../lib/db.js";
-import Product from "../../../../../models/Product.js";
-import User from "../../../../../models/User.js";
-import Order from "../../../../../models/Order.js";
-import { authMiddleware } from "../../../../../lib/auth.js";
-import { getOpenAIClient } from "../../../../../lib/openai.js";
+// backend/pages/api/shops/[shopId]/ai/chat.js
+import connectDB from "../../../../../../lib/db.js";
+import Product from "../../../../../../models/Product.js";
+import User from "../../../../../../models/User.js";
+import Order from "../../../../../../models/Order.js";
+import { authMiddleware } from "../../../../../../lib/auth.js";
+import { getOpenAIClient } from "../../../../../../lib/openai.js";
 
 async function handler(req, res) {
   if (req.method !== "POST") {
@@ -26,22 +27,16 @@ async function handler(req, res) {
   try {
     console.log("[AI CHAT] User query:", query);
 
-    // Fetch shop data for context
     const products = await Product.find({ shopId });
-    const employees = await User.find({ shopId, role: "employee" }).select(
-      "-passwordHash"
-    );
-    const recentOrders = await Order.find({ shopId })
-      .sort({ date: -1 })
-      .limit(10);
+    const employees = await User.find({ shopId, role: "employee" }).select("-passwordHash");
+    const recentOrders = await Order.find({ shopId }).sort({ date: -1 }).limit(10);
 
-    // Build context string
     const contextParts = [];
 
     contextParts.push("=== PRODUCTS ===");
     products.forEach((p) => {
       contextParts.push(
-        `- ${p.name} (Category: ${p.category}, Price: Rs.${p.price}, Cost: Rs.${p.cost}, Stock: ${p.stock}, Low Stock Threshold: ${p.lowStockThreshold})`
+        `- ${p.name} (Category: ${p.category}, Price: Rs.${p.price}, Cost: Rs.${p.cost}, Stock: ${p.stock}, Threshold: ${p.lowStockThreshold})`
       );
     });
 
@@ -52,28 +47,25 @@ async function handler(req, res) {
       );
     });
 
-    contextParts.push("\n=== RECENT ORDERS (Last 10) ===");
+    contextParts.push("\n=== RECENT ORDERS ===");
     recentOrders.forEach((o) => {
       contextParts.push(
-        `- Order #${o._id}: Customer: ${o.customerName}, Biller: ${o.billerName}, Total: Rs.${o.total}, Profit: Rs.${o.totalProfit}, Date: ${o.date}`
+        `- Order ${o._id}: Customer ${o.customerName}, Biller ${o.billerName}, Total Rs.${o.total}, Profit Rs.${o.totalProfit}`
       );
     });
 
     const contextString = contextParts.join("\n");
 
-    console.log("[AI CHAT] Context built, calling OpenAI...");
+    console.log("[AI CHAT] Calling OpenAI...");
 
-    // Call OpenAI API
     const openai = getOpenAIClient();
     
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // or "gpt-4" for better quality
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant for a shop management system. Answer questions based on the following shop data. Be concise and accurate.
-
-${contextString}`,
+          content: `You are a helpful shop management assistant. Answer based on this data:\n\n${contextString}`,
         },
         {
           role: "user",
@@ -86,16 +78,16 @@ ${contextString}`,
 
     const answer = completion.choices[0].message.content;
 
-    console.log("[AI CHAT] OpenAI response received");
+    console.log("[AI CHAT] Response received");
 
     res.status(200).json({
       answer: answer,
-      debugComment: `Context: ${products.length} products, ${employees.length} employees, ${recentOrders.length} recent orders`,
+      debugComment: `${products.length} products, ${employees.length} employees, ${recentOrders.length} orders`,
     });
   } catch (error) {
     console.error("[AI CHAT] Error:", error);
     res.status(500).json({
-      message: "Failed to process AI query",
+      message: "Failed to process query",
       error: error.message,
     });
   }
