@@ -1,43 +1,32 @@
-import connectDB from "../../../lib/db.js";
-import User from "../../../models/User.js";
-import { signToken } from "../../../lib/auth.js";
-import handleCors from '../../../middleware/cors.js'; // <-- ADD IMPORT
+// backend/pages/api/auth/login.js
 
+import connectDB from '../../../lib/db.js';
+import User from '../../../models/User.js';
+import { signToken } from '../../../lib/auth.js';
+import handleCors from '../../../middleware/cors.js';
 
 export default async function handler(req, res) {
-  await handleCors(req, res); // <-- ADD THIS LINE FIRST
+  await handleCors(req, res);
 
-  // --- ADD THIS LOG ---
-  console.log("Received request method:", req.method); // Keep logging if desired
-
-  if (req.method !== "POST") {
-    console.error("Method was not POST, returning 405.");
-    return res.status(405).json({ message: "Method Not Allowed" });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   await connectDB();
   const { email, password } = req.body;
 
-  console.log("--- [LOGIN] ATTEMPT ---");
-  console.log("[LOGIN] Received login request for email:", email);
-
   try {
-    const user = await User.findOne({ email }).select("+passwordHash");
-
-    console.log("[LOGIN] User object found in database:", user);
+    const user = await User.findOne({ email }).select('+passwordHash');
 
     if (!user) {
-      console.log("[LOGIN] User not found.");
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      console.log("[LOGIN] Password does not match.");
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    console.log("[LOGIN] Password matches. Generating token.");
     const token = signToken(user);
     const userResponse = {
       id: user._id,
@@ -47,11 +36,13 @@ export default async function handler(req, res) {
       shopId: user.shopId,
     };
 
-    res
-      .status(200)
-      .json({ message: "Logged in successfully", token, user: userResponse });
+    res.status(200).json({ 
+      message: 'Logged in successfully', 
+      token, 
+      user: userResponse 
+    });
   } catch (error) {
-    console.error("[LOGIN] CRITICAL ERROR caught in try-catch block:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error('Login Error:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 }
