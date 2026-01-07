@@ -127,101 +127,101 @@ async function handler(req, res) {
     return res.status(403).json({ message: 'Access denied.' });
   }
 
-  const { message, query } = req.body;
-  const userMessage = message || query;
+  const { message } = req.body;
 
-  if (!userMessage) {
+  if (!message) {
     return res.status(400).json({ message: 'Message is required' });
   }
 
   try {
+    // Gather shop context
     const products = await Product.find({ shopId }).lean();
     const orders = await Order.find({ shopId })
       .sort({ date: -1 })
       .limit(100)
       .lean();
 
+    // Calculate today's earnings
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const todayOrders = orders.filter((order) => {
-      const orderDate = new Date(order.date);
-      return orderDate >= today;
-    });
+    const todayOrders = orders.filter(
+      (order) => new Date(order.date) >= today
+    );
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
+    const todayProfit = todayOrders.reduce((sum, o) => sum + o.totalProfit, 0);
 
-    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const todayProfit = todayOrders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
+    // Calculate total stats
+    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+    const totalProfit = orders.reduce((sum, o) => sum + o.totalProfit, 0);
+    const totalOrders = orders.length;
 
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const totalProfit = orders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-
+    // Low stock products
     const lowStockProducts = products.filter(
       (p) => p.stock <= (p.lowStockThreshold || 10)
     );
 
-    const productSales = new Map();
-    orders.forEach((order) => {
-      order.items.forEach((item) => {
-        const current = productSales.get(item.name) || 0;
-        productSales.set(item.name, current + item.quantity);
-      });
-    });
+    // Build context for AI
+    const shopContext = `
+You are an AI business assistant for a retail shop. Answer questions based on this data:
 
-    const topProducts = Array.from(productSales.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, qty]) => `${name} (${qty} sold)`)
-      .join(', ');
-
-    const shopContext = `You are an AI business assistant for a retail shop. Answer the user's question using this data:
-
-**TODAY'S PERFORMANCE:**
-- Revenue Today: ₹${todayRevenue.toFixed(2)}
-- Profit Today: ₹${todayProfit.toFixed(2)}
-- Orders Today: ${todayOrders.length}
-
-**OVERALL STATISTICS:**
+**Shop Inventory:**
 - Total Products: ${products.length}
-- Total Orders: ${orders.length}
+- Low Stock Items: ${lowStockProducts.length}
+${
+  lowStockProducts.length > 0
+    ? `- Critical Stock: ${lowStockProducts
+        .slice(0, 5)
+        .map((p) => `${p.name} (${p.stock} units)`)
+        .join(', ')}`
+    : ''
+}
+
+**Today's Performance:**
+- Revenue: ₹${todayRevenue.toFixed(2)}
+- Profit: ₹${todayProfit.toFixed(2)}
+- Orders: ${todayOrders.length}
+
+**Overall Stats:**
+- Total Orders: ${totalOrders}
 - Total Revenue: ₹${totalRevenue.toFixed(2)}
 - Total Profit: ₹${totalProfit.toFixed(2)}
 
-**INVENTORY STATUS:**
-- Low Stock Items: ${lowStockProducts.length}
-${lowStockProducts.length > 0 ? `- Critical Items: ${lowStockProducts.slice(0, 5).map(p => `${p.name} (${p.stock} units)`).join(', ')}` : ''}
+**Top Products by Stock:**
+${products
+  .sort((a, b) => b.stock - a.stock)
+  .slice(0, 5)
+  .map((p) => `- ${p.name}: ${p.stock} units (₹${p.price})`)
+  .join('\n')}
 
-**TOP SELLING PRODUCTS:**
-${topProducts || 'No sales data available'}
+**Recent Orders (Last 10):**
+${orders
+  .slice(0, 10)
+  .map(
+    (o) =>
+      `- ${o.customerName}: ₹${o.total} on ${new Date(o.date).toLocaleDateString()}`
+  )
+  .join('\n')}
 
-**RECENT ORDERS:**
-${orders.slice(0, 5).map(o => `- ${o.customerName}: ₹${o.total} (${new Date(o.date).toLocaleDateString('en-IN')})`).join('\n')}
+User Question: ${message}
 
-**USER QUESTION:** ${userMessage}
+Provide a helpful, concise answer with specific numbers and actionable insights. Format currency in Indian Rupees (₹). Use bullet points for lists.
+    `.trim();
 
-Provide a clear, helpful answer with specific numbers. Use Indian Rupees (₹) for money. Be concise and actionable.`;
-
+    // Call Gemini AI
     const model = getGeminiModel();
     const result = await model.generateContent(shopContext);
-    const response = await result.response;
+    const response = result.response;
     const aiResponse = response.text();
 
     res.status(200).json({ reply: aiResponse });
   } catch (error) {
     console.error('AI Chat Error:', error);
     res.status(500).json({
-      reply: `I encountered an error processing your request. Error: ${error.message}`,
+      message: 'Failed to get AI response',
+      error: error.message,
     });
   }
 }
 
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
-};
-
 export default authMiddleware(handler);
-
 
