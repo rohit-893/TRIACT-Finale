@@ -68,7 +68,7 @@ You have access to the following Mongoose models and schemas:
           }
         }
 
-5. **Notification Model** (Collection: "notifications")
+5.  **Notification Model** (Collection: "notifications")
     * Description: Stores alerts, primarily for low stock.
     * Schema:
         {
@@ -76,5 +76,16 @@ You have access to the following Mongoose models and schemas:
           "message": { "type": "String" }, // The notification text
           "isRead": { "type": "Boolean" }, // Whether the owner has seen it
           "createdAt": { "type": "Date" } // When the notification was created
+        }
+
+6.  **Shop Model** (Collection: "shops")
+    * Description: Represents the shop itself with its name, address, and related information.
+    * Schema:
+        {
+          "shopName": { "type": "String" }, // Name of the shop
+          "ownerId": { "type": "ObjectId", "ref": "User" }, // Owner of the shop
+          "address": { "type": "String" }, // Physical address/location of the shop
+          "employees": [{ "type": "ObjectId", "ref": "User" }], // Array of employee IDs
+          "products": [{ "type": "ObjectId", "ref": "Product" }] // Array of product IDs
         }
 `;

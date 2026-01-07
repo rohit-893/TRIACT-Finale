@@ -1,212 +1,376 @@
-import "dotenv/config";
+// backend/seed.js
+
 import mongoose from "mongoose";
+import dotenv from "dotenv";
 import User from "./models/User.js";
 import Shop from "./models/Shop.js";
 import Product from "./models/Product.js";
 import Order from "./models/Order.js";
-// --- ADDED: Import Invoice to clear it ---
 import Invoice from "./models/Invoice.js";
-// --- ADDED: Import Notification to clear it ---
 import Notification from "./models/Notification.js";
-import path from 'path';
-import fs from 'fs';
 
-const getRandomDate = () => {
-  const end = new Date();
-  const start = new Date();
-  start.setMonth(start.getMonth() - 6);
-  return new Date(
-    start.getTime() + Math.random() * (end.getTime() - start.getTime())
-  );
+dotenv.config();
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI is not defined in .env file");
+  process.exit(1);
+}
+
+// Helper function to generate random dates
+const randomDate = (daysAgo) => {
+  const date = new Date();
+  date.setDate(date.getDate() - Math.floor(Math.random() * daysAgo));
+  return date;
 };
 
-const seedData = async () => {
+const seedDatabase = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log("MongoDB connected for seeding...");
+    await mongoose.connect(MONGODB_URI);
+    console.log("✅ Connected to MongoDB");
 
     // Clear existing data
-    console.log("Clearing old data...");
-    await Invoice.deleteMany({}); // --- ADDED ---
-    await Notification.deleteMany({}); // --- ADDED ---
-    await Order.deleteMany({});
-    await Product.deleteMany({});
+    console.log("🗑️  Clearing existing data...");
     await User.deleteMany({});
     await Shop.deleteMany({});
+    await Product.deleteMany({});
+    await Order.deleteMany({});
+    await Invoice.deleteMany({});
+    await Notification.deleteMany({});
+    console.log("✅ All collections cleared");
 
-     // --- ADDED: Clear old invoice files ---
-     const invoicesDir = path.join(process.cwd(), "public", "invoices");
-     if (fs.existsSync(invoicesDir)) {
-       const files = fs.readdirSync(invoicesDir);
-       for (const file of files) {
-         if (file !== '.gitkeep') { // Keep the .gitkeep file
-            fs.unlinkSync(path.join(invoicesDir, file));
-         }
-       }
-       console.log("Cleared old invoice files.");
-     }
-     // ------------------------------------
+    // ===== 1. CREATE USERS =====
+    console.log("\n👤 Creating users...");
 
-    console.log("Old data cleared.");
-
-    // Create Owner and Shop
-    const owner1 = await User.create({
+    // Owner
+    const owner = await User.create({
       name: "Ankit Sharma",
       email: "owner1@example.com",
-      passwordHash: "Password123", // Will be hashed by pre-save hook
+      passwordHash: "Password123",
       role: "owner",
+      shopId: null,
     });
-    const shop1 = await Shop.create({
-      shopName: "Ankit's General Store",
-      ownerId: owner1._id,
-      address: "123 Main St, Anytown", // Add address
-    });
-    await User.findByIdAndUpdate(owner1._id, { shopId: shop1._id });
-    console.log("Owner and Shop created and linked successfully.");
+    console.log(`✅ Created owner: ${owner.name}`);
 
-    // Create Employees
+    // Employees (will link to shop later)
     const employee1 = await User.create({
       name: "Rahul Kumar",
       email: "rahul@example.com",
-      passwordHash: "Password123", // Will be hashed
+      passwordHash: "Password123",
       role: "employee",
-      shopId: shop1._id,
-      salary: { amount: 16000, status: 'pending' }, // Start as pending
+      shopId: null,
+      salary: {
+        amount: 25000,
+        status: "pending",
+        nextPaymentDate: new Date(2026, 0, 15), // Jan 15, 2026
+      },
     });
+
     const employee2 = await User.create({
       name: "Priya Singh",
       email: "priya@example.com",
-      passwordHash: "Password123", // Will be hashed
+      passwordHash: "Password123",
       role: "employee",
-      shopId: shop1._id,
-      salary: { amount: 18000, status: 'pending' }, // Start as pending
+      shopId: null,
+      salary: {
+        amount: 28000,
+        status: "paid",
+        nextPaymentDate: new Date(2026, 1, 1), // Feb 1, 2026
+      },
     });
-    console.log("Sample employees created.");
 
-    // Link employees to shop
-    shop1.employees.push(employee1._id, employee2._id);
+    const employee3 = await User.create({
+      name: "Amit Verma",
+      email: "amit@example.com",
+      passwordHash: "Password123",
+      role: "employee",
+      shopId: null,
+      salary: {
+        amount: 22000,
+        status: "pending",
+        nextPaymentDate: new Date(2026, 0, 20), // Jan 20, 2026
+      },
+    });
 
+    console.log(`✅ Created ${3} employees`);
 
-    // Create Products (using the same data as before)
-    console.log("Creating 50 products...");
-    const productsData = [
-       { shopId: shop1._id, name: "Aashirvaad Atta 5kg", category: "Staples", price: 240, cost: 190, stock: 40 },
-       { shopId: shop1._id, name: "India Gate Basmati Rice 1kg", category: "Staples", price: 130, cost: 100, stock: 60 },
-       { shopId: shop1._id, name: "Tata Sampann Toor Dal 1kg", category: "Staples", price: 160, cost: 110, stock: 75 },
-       { shopId: shop1._id, name: "Fortune Sunlite Oil 1L", category: "Staples", price: 150, cost: 115, stock: 55 },
-       { shopId: shop1._id, name: "Tata Salt 1kg", category: "Staples", price: 30, cost: 20, stock: 200 },
-       { shopId: shop1._id, name: "Rajdhani Besan 500g", category: "Staples", price: 70, cost: 45, stock: 80 },
-       { shopId: shop1._id, name: "MTR Rava Idli Mix 500g", category: "Staples", price: 105, cost: 70, stock: 50 },
-       { shopId: shop1._id, name: "Sugar 1kg", category: "Staples", price: 45, cost: 40, stock: 150 },
-       { shopId: shop1._id, name: "Saffola Masala Oats 500g", category: "Staples", price: 170, cost: 130, stock: 65 },
-       { shopId: shop1._id, name: "Parachute Coconut Oil 250ml", category: "Staples", price: 120, cost: 110, stock: 70 },
-       { shopId: shop1._id, name: "MDH Deggi Mirch 100g", category: "Groceries", price: 70, cost: 65, stock: 90 },
-       { shopId: shop1._id, name: "Everest Turmeric Powder 200g", category: "Groceries", price: 55, cost: 51, stock: 85 },
-       { shopId: shop1._id, name: "Kissan Tomato Ketchup 950g", category: "Groceries", price: 130, cost: 115, stock: 45 },
-       { shopId: shop1._id, name: "Maggi Noodles Family Pack", category: "Groceries", price: 45, cost: 25, stock: 200 },
-       { shopId: shop1._id, name: "Kissan Mixed Fruit Jam 700g", category: "Groceries", price: 205, cost: 160, stock: 40 },
-       { shopId: shop1._id, name: "Nutella Hazelnut Spread 350g", category: "Groceries", price: 400, cost: 320, stock: 25 },
-       { shopId: shop1._id, name: "Ching's Schezwan Chutney", category: "Groceries", price: 80, cost: 60, stock: 50 },
-       { shopId: shop1._id, name: "MDH Garam Masala 100g", category: "Groceries", price: 82, cost: 68, stock: 90 },
-       { shopId: shop1._id, name: "Catch Black Pepper Powder", category: "Groceries", price: 105, cost: 80, stock: 60 },
-       { shopId: shop1._id, name: "Weikfield Baking Powder 100g", category: "Groceries", price: 30, cost: 24, stock: 70 },
-       { shopId: shop1._id, name: "Amul Milk 1L", category: "Dairy", price: 60, cost: 52, stock: 50 },
-       { shopId: shop1._id, name: "Britannia Cheese Slices 100g", category: "Dairy", price: 80, cost: 72, stock: 65 },
-       { shopId: shop1._id, name: "Amul Butter 100g", category: "Dairy", price: 52, cost: 47, stock: 100 },
-       { shopId: shop1._id, name: "McCain Smiles 415g", category: "Frozen Foods", price: 99, cost: 85, stock: 30 },
-       { shopId: shop1._id, name: "Kwality Wall's Cornetto", category: "Frozen Foods", price: 40, cost: 35, stock: 80 },
-       { shopId: shop1._id, name: "Coca-Cola 750ml", category: "Beverages", price: 40, cost: 35, stock: 80 },
-       { shopId: shop1._id, name: "Paper Boat Aamras 1L", category: "Beverages", price: 110, cost: 95, stock: 50 },
-       { shopId: shop1._id, name: "Tata Tea Gold 500g", category: "Beverages", price: 280, cost: 245, stock: 40 },
-       { shopId: shop1._id, name: "Bru Instant Coffee 100g", category: "Beverages", price: 210, cost: 185, stock: 35 },
-       { shopId: shop1._id, name: "Bournvita Health Drink 500g", category: "Beverages", price: 240, cost: 210, stock: 45 },
-       { shopId: shop1._id, name: "Parle-G Biscuit 100g", category: "Snacks", price: 10, cost: 8, stock: 500 },
-       { shopId: shop1._id, name: "Cadbury Dairy Milk", category: "Snacks", price: 20, cost: 17, stock: 250 },
-       { shopId: shop1._id, name: "Lays Chips - Magic Masala", category: "Snacks", price: 20, cost: 17, stock: 300 },
-       { shopId: shop1._id, name: "Haldiram's Bhujia 400g", category: "Snacks", price: 90, cost: 82, stock: 100 },
-       { shopId: shop1._id, name: "Britannia Good Day Cookies", category: "Snacks", price: 30, cost: 25, stock: 150 },
-       { shopId: shop1._id, name: "Sunfeast Dark Fantasy", category: "Snacks", price: 35, cost: 31, stock: 120 },
-       { shopId: shop1._id, name: "Bingo Mad Angles", category: "Snacks", price: 10, cost: 8, stock: 250 },
-       { shopId: shop1._id, name: "Kurkure Masala Munch", category: "Snacks", price: 10, cost: 8, stock: 280 },
-       { shopId: shop1._id, name: "Too Yumm Karare", category: "Snacks", price: 20, cost: 17, stock: 180 },
-       { shopId: shop1._id, name: "Pop Pringles", category: "Snacks", price: 105, cost: 90, stock: 50 },
-       { shopId: shop1._id, name: "Dettol Soap 75g", category: "Personal Care", price: 35, cost: 31, stock: 120 },
-       { shopId: shop1._id, name: "Colgate MaxFresh Toothpaste 150g", category: "Personal Care", price: 95, cost: 84, stock: 70 },
-       { shopId: shop1._id, name: "Head & Shoulders Shampoo 180ml", category: "Personal Care", price: 160, cost: 135, stock: 60 },
-       { shopId: shop1._id, name: "Nivea Body Lotion 200ml", category: "Personal Care", price: 220, cost: 190, stock: 50 },
-       { shopId: shop1._id, name: "Gillette Mach3 Razor", category: "Personal Care", price: 130, cost: 110, stock: 40 },
-       { shopId: shop1._id, name: "Surf Excel 1kg", category: "Household", price: 250, cost: 190, stock: 30 },
-       { shopId: shop1._id, name: "Lizol Floor Cleaner 975ml", category: "Household", price: 195, cost: 170, stock: 45 },
-       { shopId: shop1._id, name: "Harpic Toilet Cleaner 500ml", category: "Household", price: 93, cost: 80, stock: 50 },
-       { shopId: shop1._id, name: "Good Knight Refill", category: "Household", price: 75, cost: 60, stock: 95 },
-       { shopId: shop1._id, name: "Vim Dishwash Bar", category: "Household", price: 10, cost: 8, stock: 200 },
-     ];
-    const products = await Product.insertMany(productsData);
-    shop1.products = products.map((p) => p._id);
-    await shop1.save(); // Saves employees and products to the shop document
-    console.log(`${products.length} products created.`);
+    // ===== 2. CREATE SHOP =====
+    console.log("\n🏪 Creating shop...");
 
-    // --- Generate Orders with Profit ---
-    console.log("Generating 250 random orders with profit calculation...");
-    const billerNames = [employee1.name, employee2.name];
-    const ordersToCreate = [];
-    const customerNames = [
-      "Suresh", "Priya", "Amit", "Sunita", "Rahul", "Deepa",
-      "Vikas", "Pooja", "Rohan", "Walk-in Customer",
-    ];
+    const shop = await Shop.create({
+      shopName: "Sharma General Store",
+      ownerId: owner._id,
+      address: "Shop No. 45, Main Market, Narnaund, Haryana - 126049",
+      employees: [employee1._id, employee2._id, employee3._id],
+      products: [], // Will populate after creating products
+    });
 
-    for (let i = 0; i < 250; i++) {
-      let orderTotalRevenue = 0;
-      let orderTotalCost = 0; // --- ADDED ---
-      const orderItems = [];
-      const itemCount = Math.floor(Math.random() * 5) + 1;
+    // Update users with shopId
+    await User.updateMany(
+      { _id: { $in: [owner._id, employee1._id, employee2._id, employee3._id] } },
+      { shopId: shop._id }
+    );
 
-      for (let j = 0; j < itemCount; j++) {
-        const randomProduct = products[Math.floor(Math.random() * products.length)];
-        const quantity = Math.floor(Math.random() * 4) + 1;
+    console.log(`✅ Created shop: ${shop.shopName}`);
 
-        // Ensure we don't 'sell' more than available in seed data (optional, good practice)
-        const sellQuantity = Math.min(quantity, randomProduct.stock || 0);
-        if (sellQuantity <= 0) continue; // Skip if product somehow has 0 stock
+    // ===== 3. CREATE PRODUCTS =====
+    console.log("\n📦 Creating products...");
 
-        orderItems.push({
-          productId: randomProduct._id,
-          name: randomProduct.name,
-          quantity: sellQuantity,
-          price: randomProduct.price,
-          cost: randomProduct.cost, // --- ADDED ---
+    const categories = {
+      Beverages: [
+        { name: "Coca-Cola 500ml", price: 40, cost: 30, stock: 150 },
+        { name: "Pepsi 500ml", price: 40, cost: 30, stock: 120 },
+        { name: "Sprite 500ml", price: 40, cost: 30, stock: 100 },
+        { name: "Mountain Dew 500ml", price: 40, cost: 30, stock: 80 },
+        { name: "Bisleri Water 1L", price: 20, cost: 15, stock: 200 },
+        { name: "Red Bull 250ml", price: 125, cost: 100, stock: 50 },
+        { name: "Frooti 200ml", price: 20, cost: 15, stock: 90 },
+        { name: "Real Juice 1L", price: 150, cost: 120, stock: 45 },
+      ],
+      Snacks: [
+        { name: "Lays Classic 50g", price: 20, cost: 15, stock: 180 },
+        { name: "Kurkure Masala 50g", price: 20, cost: 15, stock: 8 }, // Low stock
+        { name: "Haldiram Bhujia 200g", price: 60, cost: 45, stock: 95 },
+        { name: "Bingo Mad Angles", price: 20, cost: 15, stock: 110 },
+        { name: "Uncle Chips 50g", price: 20, cost: 15, stock: 75 },
+        { name: "Pringles 100g", price: 120, cost: 95, stock: 30 },
+      ],
+      Dairy: [
+        { name: "Amul Milk 500ml", price: 30, cost: 25, stock: 85 },
+        { name: "Mother Dairy Curd 400g", price: 40, cost: 32, stock: 60 },
+        { name: "Amul Butter 100g", price: 55, cost: 45, stock: 7 }, // Low stock
+        { name: "Amul Cheese Slice 200g", price: 130, cost: 105, stock: 40 },
+        { name: "Nestle Milk Powder 400g", price: 320, cost: 270, stock: 25 },
+      ],
+      Groceries: [
+        { name: "Tata Salt 1kg", price: 22, cost: 18, stock: 150 },
+        { name: "Fortune Oil 1L", price: 180, cost: 150, stock: 55 },
+        { name: "India Gate Basmati Rice 5kg", price: 450, cost: 380, stock: 35 },
+        { name: "Tata Tea Gold 500g", price: 240, cost: 200, stock: 40 },
+        { name: "Aashirvaad Atta 5kg", price: 275, cost: 235, stock: 50 },
+        { name: "Maggi Noodles Pack of 12", price: 144, cost: 120, stock: 9 }, // Low stock
+      ],
+      Bakery: [
+        { name: "Britannia Bread 400g", price: 40, cost: 32, stock: 45 },
+        { name: "Parle-G Biscuits 200g", price: 25, cost: 20, stock: 120 },
+        { name: "Sunfeast Dark Fantasy 75g", price: 30, cost: 24, stock: 85 },
+        { name: "Britannia Good Day 100g", price: 35, cost: 28, stock: 70 },
+        { name: "McVities Digestive 250g", price: 80, cost: 65, stock: 40 },
+      ],
+      "Personal Care": [
+        { name: "Colgate Toothpaste 200g", price: 120, cost: 95, stock: 55 },
+        { name: "Dettol Soap 125g", price: 45, cost: 35, stock: 90 },
+        { name: "Head & Shoulders 340ml", price: 380, cost: 310, stock: 25 },
+        { name: "Fair & Lovely 50g", price: 140, cost: 115, stock: 30 },
+        { name: "Parachute Coconut Oil 200ml", price: 110, cost: 88, stock: 45 },
+      ],
+      Stationery: [
+        { name: "Classmate Notebook 180 Pages", price: 50, cost: 38, stock: 60 },
+        { name: "Reynolds Pen Blue", price: 10, cost: 7, stock: 150 },
+        { name: "Apsara Pencil Pack of 10", price: 40, cost: 30, stock: 80 },
+        { name: "Fevicol 100ml", price: 35, cost: 28, stock: 45 },
+      ],
+    };
+
+    const allProducts = [];
+
+    for (const [category, items] of Object.entries(categories)) {
+      for (const item of items) {
+        const product = await Product.create({
+          shopId: shop._id,
+          name: item.name,
+          category: category,
+          price: item.price,
+          cost: item.cost,
+          stock: item.stock,
+          lowStockThreshold: 10,
         });
-        orderTotalRevenue += randomProduct.price * sellQuantity;
-        orderTotalCost += randomProduct.cost * sellQuantity; // --- ADDED ---
+        allProducts.push(product);
       }
-
-      if (orderItems.length === 0) continue; // Skip if no valid items added
-
-      const orderTotalProfit = orderTotalRevenue - orderTotalCost; // --- ADDED ---
-      const randomBiller = billerNames[Math.floor(Math.random() * billerNames.length)];
-
-      ordersToCreate.push({
-        shopId: shop1._id,
-        customerName: customerNames[Math.floor(Math.random() * customerNames.length)],
-        billerName: randomBiller,
-        items: orderItems,
-        total: orderTotalRevenue, // Total Revenue
-        totalProfit: orderTotalProfit, // --- ADDED ---
-        date: getRandomDate(),
-      });
+      console.log(`✅ Created ${items.length} products in ${category}`);
     }
 
-    await Order.insertMany(ordersToCreate);
-    console.log(`${ordersToCreate.length} orders created.`);
-    // Note: This seed script does not generate PDF invoices or update stock like the API does.
+    // Update shop with products
+    await Shop.findByIdAndUpdate(shop._id, {
+      products: allProducts.map((p) => p._id),
+    });
 
-    console.log("Database seeding completed successfully! 🎉");
+    console.log(`✅ Total products created: ${allProducts.length}`);
+
+    // ===== 4. CREATE ORDERS =====
+    console.log("\n🛒 Creating orders...");
+
+    const billers = [employee1.name, employee2.name, employee3.name];
+    const customerNames = [
+      "Walk-in Customer",
+      "Rajesh Gupta",
+      "Sunita Devi",
+      "Vikas Sharma",
+      "Neha Patel",
+      "Ramesh Kumar",
+      "Pooja Singh",
+      "Amit Joshi",
+      "Kavita Verma",
+      "Suresh Reddy",
+    ];
+
+    const orders = [];
+
+    // Create 100 orders over the past 90 days
+    for (let i = 0; i < 100; i++) {
+      const numItems = Math.floor(Math.random() * 4) + 1; // 1-4 items per order
+      const orderItems = [];
+      let totalRevenue = 0;
+      let totalCost = 0;
+
+      // Select random products for this order
+      const selectedProducts = [];
+      for (let j = 0; j < numItems; j++) {
+        const randomProduct = allProducts[Math.floor(Math.random() * allProducts.length)];
+        selectedProducts.push(randomProduct);
+      }
+
+      // Build order items
+      for (const product of selectedProducts) {
+        const quantity = Math.floor(Math.random() * 5) + 1; // 1-5 units
+        const itemRevenue = product.price * quantity;
+        const itemCost = product.cost * quantity;
+
+        orderItems.push({
+          productId: product._id,
+          name: product.name,
+          quantity: quantity,
+          price: product.price,
+          cost: product.cost,
+        });
+
+        totalRevenue += itemRevenue;
+        totalCost += itemCost;
+      }
+
+      const totalProfit = totalRevenue - totalCost;
+
+      const order = await Order.create({
+        shopId: shop._id,
+        customerName: customerNames[Math.floor(Math.random() * customerNames.length)],
+        billerName: billers[Math.floor(Math.random() * billers.length)],
+        items: orderItems,
+        total: totalRevenue,
+        totalProfit: totalProfit,
+        date: randomDate(90), // Random date within last 90 days
+      });
+
+      orders.push(order);
+    }
+
+    console.log(`✅ Created ${orders.length} orders`);
+
+    // ===== 5. CREATE INVOICES =====
+    console.log("\n📄 Creating invoices...");
+
+    const invoices = [];
+
+    for (const order of orders) {
+      const invoice = await Invoice.create({
+        shopId: shop._id,
+        orderId: order._id,
+        pdfPath: `/invoices/invoice-${order._id}.pdf`,
+        customerName: order.customerName,
+        billerName: order.billerName,
+        total: order.total,
+        date: order.date,
+      });
+      invoices.push(invoice);
+    }
+
+    console.log(`✅ Created ${invoices.length} invoices`);
+
+    // ===== 6. CREATE NOTIFICATIONS =====
+    console.log("\n🔔 Creating notifications...");
+
+    const lowStockProducts = allProducts.filter((p) => p.stock <= p.lowStockThreshold);
+
+    const notifications = [];
+
+    for (const product of lowStockProducts) {
+      const notification = await Notification.create({
+        shopId: shop._id,
+        message: `Low stock alert: ${product.name} has only ${product.stock} units left`,
+        isRead: Math.random() > 0.5, // 50% read, 50% unread
+        createdAt: randomDate(7), // Within last 7 days
+      });
+      notifications.push(notification);
+    }
+
+    // Add some general notifications
+    const generalNotifications = [
+      "Monthly sales target achieved! 🎉",
+      "New product category added successfully",
+      "System maintenance scheduled for next Sunday",
+    ];
+
+    for (const msg of generalNotifications) {
+      const notification = await Notification.create({
+        shopId: shop._id,
+        message: msg,
+        isRead: false,
+        createdAt: randomDate(5),
+      });
+      notifications.push(notification);
+    }
+
+    console.log(`✅ Created ${notifications.length} notifications`);
+
+    // ===== SUMMARY =====
+    console.log("\n" + "=".repeat(50));
+    console.log("📊 DATABASE SEEDING SUMMARY");
+    console.log("=".repeat(50));
+    console.log(`👤 Users: ${await User.countDocuments()}`);
+    console.log(`   - Owners: ${await User.countDocuments({ role: "owner" })}`);
+    console.log(`   - Employees: ${await User.countDocuments({ role: "employee" })}`);
+    console.log(`🏪 Shops: ${await Shop.countDocuments()}`);
+    console.log(`📦 Products: ${await Product.countDocuments()}`);
+    console.log(`   - Categories: ${Object.keys(categories).length}`);
+    console.log(`   - Low Stock Items: ${lowStockProducts.length}`);
+    console.log(`🛒 Orders: ${await Order.countDocuments()}`);
+    console.log(`📄 Invoices: ${await Invoice.countDocuments()}`);
+    console.log(`🔔 Notifications: ${await Notification.countDocuments()}`);
+    console.log("=".repeat(50));
+
+    // Calculate and display statistics
+    const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+    const totalProfit = orders.reduce((sum, order) => sum + order.totalProfit, 0);
+    const avgOrderValue = totalRevenue / orders.length;
+
+    console.log("\n💰 FINANCIAL SUMMARY");
+    console.log("=".repeat(50));
+    console.log(`Total Revenue: ₹${totalRevenue.toFixed(2)}`);
+    console.log(`Total Profit: ₹${totalProfit.toFixed(2)}`);
+    console.log(`Average Order Value: ₹${avgOrderValue.toFixed(2)}`);
+    console.log(`Profit Margin: ${((totalProfit / totalRevenue) * 100).toFixed(2)}%`);
+    console.log("=".repeat(50));
+
+    console.log("\n🔐 TEST CREDENTIALS");
+    console.log("=".repeat(50));
+    console.log("Owner Account:");
+    console.log("  Email: owner1@example.com");
+    console.log("  Password: Password123");
+    console.log("\nEmployee Accounts:");
+    console.log("  1. rahul@example.com / Password123 (Salary: Pending)");
+    console.log("  2. priya@example.com / Password123 (Salary: Paid)");
+    console.log("  3. amit@example.com / Password123 (Salary: Pending)");
+    console.log("=".repeat(50));
+
+    console.log("\n✅ Database seeding completed successfully!");
+
+    await mongoose.connection.close();
+    process.exit(0);
   } catch (error) {
-    console.error("Error during seeding:", error);
-  } finally {
-    await mongoose.disconnect();
-    console.log("MongoDB disconnected.");
+    console.error("❌ Error seeding database:", error);
+    await mongoose.connection.close();
+    process.exit(1);
   }
 };
 
-seedData();
+seedDatabase();
