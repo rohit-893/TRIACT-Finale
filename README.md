@@ -1,7 +1,5 @@
 # TRIACT - AI-Powered Retail Intelligence System
 
-![TRIACT Dashboard Banner](https://triact-frontend.vercel.app/dashboard)
-
 **TRIACT** is a full-stack inventory and business management platform designed for modern retailers. Unlike traditional POS systems, TRIACT leverages **Generative AI (Google Gemini)** and **OCR (Tesseract.js)** to act as an intelligent partner—predicting stockouts, answering complex business questions, and digitizing physical invoices automatically.
 
 ---
