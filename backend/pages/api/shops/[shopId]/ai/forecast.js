@@ -1,8 +1,8 @@
 // backend/pages/api/shops/[shopId]/ai/forecast.js
-import connectDB from "../../../../../../lib/db.js";
-import Product from "../../../../../../models/Product.js";
-import Order from "../../../../../../models/Order.js";
-import { authMiddleware } from "../../../../../../lib/auth.js";
+import connectDB from "../../../../lib/db.js";
+import Product from "../../../../models/Product.js";
+import Order from "../../../../../models/Order.js";
+import { authMiddleware } from "../../../../lib/auth.js";
 
 async function handler(req, res) {
   if (req.method !== "GET") {
