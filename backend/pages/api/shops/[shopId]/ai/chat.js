@@ -3,6 +3,7 @@ import connectDB from "../../../../../lib/db.js";
 import Product from "../../../../../models/Product.js";
 import User from "../../../../../models/User.js";
 import Order from "../../../../../models/Order.js";
+import Shop from "../../../../../models/Shop.js";  // ← ADD THIS
 import { authMiddleware } from "../../../../../lib/auth.js";
 import { getOpenAIClient } from "../../../../../lib/openai.js";
 
@@ -27,13 +28,22 @@ async function handler(req, res) {
   try {
     console.log("[AI CHAT] User query:", query);
 
+    // ===== FETCH SHOP INFORMATION =====
+    const shop = await Shop.findById(shopId).populate("ownerId", "name email");
     const products = await Product.find({ shopId });
     const employees = await User.find({ shopId, role: "employee" }).select("-passwordHash");
     const recentOrders = await Order.find({ shopId }).sort({ date: -1 }).limit(10);
 
     const contextParts = [];
 
-    contextParts.push("=== PRODUCTS ===");
+    // ===== ADD SHOP INFORMATION TO CONTEXT =====
+    contextParts.push("=== SHOP INFORMATION ===");
+    contextParts.push(`- Shop Name: ${shop.shopName}`);
+    contextParts.push(`- Shop Address/Location: ${shop.address || "Not set"}`);
+    contextParts.push(`- Owner: ${shop.ownerId?.name || "Unknown"}`);
+    contextParts.push(`- Owner Email: ${shop.ownerId?.email || "Unknown"}`);
+
+    contextParts.push("\n=== PRODUCTS ===");
     products.forEach((p) => {
       contextParts.push(
         `- ${p.name} (Category: ${p.category}, Price: Rs.${p.price}, Cost: Rs.${p.cost}, Stock: ${p.stock}, Threshold: ${p.lowStockThreshold})`
@@ -47,16 +57,16 @@ async function handler(req, res) {
       );
     });
 
-    contextParts.push("\n=== RECENT ORDERS ===");
+    contextParts.push("\n=== RECENT ORDERS (Last 10) ===");
     recentOrders.forEach((o) => {
       contextParts.push(
-        `- Order ${o._id}: Customer ${o.customerName}, Biller ${o.billerName}, Total Rs.${o.total}, Profit Rs.${o.totalProfit}`
+        `- Order ${o._id}: Customer ${o.customerName}, Biller ${o.billerName}, Total Rs.${o.total}, Profit Rs.${o.totalProfit}, Date: ${new Date(o.date).toLocaleDateString()}`
       );
     });
 
     const contextString = contextParts.join("\n");
 
-    console.log("[AI CHAT] Calling OpenAI...");
+    console.log("[AI CHAT] Calling OpenAI with complete shop context...");
 
     const openai = getOpenAIClient();
     
@@ -65,7 +75,9 @@ async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: `You are a helpful shop management assistant. Answer based on this data:\n\n${contextString}`,
+          content: `You are a helpful shop management assistant for ${shop.shopName}. Answer questions based on the shop data provided below. Be concise, accurate, and friendly.
+
+${contextString}`,
         },
         {
           role: "user",
@@ -82,7 +94,7 @@ async function handler(req, res) {
 
     res.status(200).json({
       answer: answer,
-      debugComment: `${products.length} products, ${employees.length} employees, ${recentOrders.length} orders`,
+      debugComment: `Shop: ${shop.shopName}, ${products.length} products, ${employees.length} employees, ${recentOrders.length} orders`,
     });
   } catch (error) {
     console.error("[AI CHAT] Error:", error);
