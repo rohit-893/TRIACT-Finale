@@ -409,10 +409,3 @@ export default authMiddleware(handler);
 
 
 
-
-
-export default authMiddleware(handler);
-
-
-
-
