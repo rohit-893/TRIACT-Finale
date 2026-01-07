@@ -1,91 +1,80 @@
 // backend/pages/api/shops/[shopId]/ai/forecast.js
-import connectDB from "../../../../../lib/db.js";
-import Product from "../../../../../models/Product.js";
-import Order from "../../../../../models/Order.js";
-import { authMiddleware } from "../../../../../lib/auth.js";
+
+import connectDB from '../../../../../lib/db.js';
+import Product from '../../../../../models/Product.js';
+import Order from '../../../../../models/Order.js';
+import { authMiddleware } from '../../../../../lib/auth.js';
+import mongoose from 'mongoose';
+
+const FORECAST_DAYS = 90;
 
 async function handler(req, res) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ message: "Method Not Allowed" });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
   await connectDB();
   const { shopId } = req.query;
 
   if (req.user.shopId !== shopId) {
-    return res.status(403).json({ message: "Access denied." });
+    return res.status(403).json({ message: 'Access denied.' });
   }
 
   try {
-    console.log("[AI FORECAST] Calculating...");
+    // Get sales history from past 90 days
+    const salesHistoryDate = new Date();
+    salesHistoryDate.setDate(salesHistoryDate.getDate() - FORECAST_DAYS);
 
-    const products = await Product.find({ shopId });
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const salesData = await Order.aggregate([
+      {
+        $match: {
+          shopId: new mongoose.Types.ObjectId(shopId),
+          date: { $gte: salesHistoryDate },
+        },
+      },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.productId',
+          totalSold: { $sum: '$items.quantity' },
+        },
+      },
+    ]);
 
-    const orders = await Order.find({
-      shopId,
-      date: { $gte: ninetyDaysAgo },
+    const salesMap = new Map();
+    salesData.forEach((item) => {
+      salesMap.set(item._id.toString(), item.totalSold);
     });
 
-    const productSales = {};
+    // Get all products
+    const products = await Product.find({ shopId }).lean();
 
-    products.forEach((p) => {
-      productSales[p._id.toString()] = {
-        product: p,
-        totalSold: 0,
-      };
-    });
+    // Calculate forecast for each product
+    const forecastResults = products.map((product) => {
+      const totalSold = salesMap.get(product._id.toString()) || 0;
+      const averageDailySales = totalSold / FORECAST_DAYS;
 
-    orders.forEach((order) => {
-      order.items.forEach((item) => {
-        const prodId = item.productId.toString();
-        if (productSales[prodId]) {
-          productSales[prodId].totalSold += item.quantity;
-        }
-      });
-    });
-
-    const productsWithForecast = Object.values(productSales).map(({ product, totalSold }) => {
-      const avgDailySales = totalSold / 90;
-      let forecastDays = null;
-      let forecastText = "N/A";
-
-      if (avgDailySales > 0 && product.stock > 0) {
-        forecastDays = Math.floor(product.stock / avgDailySales);
-        forecastText = `${forecastDays} days`;
-      } else if (product.stock === 0) {
-        forecastText = "Out of stock";
-      } else if (avgDailySales === 0) {
-        forecastText = "No sales data";
+      let daysUntilStockOut;
+      if (averageDailySales === 0) {
+        daysUntilStockOut = Infinity;
+      } else {
+        daysUntilStockOut = product.stock / averageDailySales;
       }
 
       return {
-        _id: product._id,
-        name: product.name,
-        category: product.category,
-        price: product.price,
-        cost: product.cost,
-        stock: product.stock,
-        lowStockThreshold: product.lowStockThreshold,
-        totalSold90Days: totalSold,
-        avgDailySales: parseFloat(avgDailySales.toFixed(2)),
-        forecastDays: forecastDays,
-        forecastText: forecastText,
+        ...product,
+        forecast: {
+          totalSoldLast90Days: totalSold,
+          averageDailySales: averageDailySales,
+          daysUntilStockOut: daysUntilStockOut,
+        },
       };
     });
 
-    console.log("[AI FORECAST] Complete");
-
-    res.status(200).json({
-      products: productsWithForecast,
-    });
+    res.status(200).json({ products: forecastResults });
   } catch (error) {
-    console.error("[AI FORECAST] Error:", error);
-    res.status(500).json({
-      message: "Failed to generate forecast",
-      error: error.message,
-    });
+    console.error('Forecast Error:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 }
 
