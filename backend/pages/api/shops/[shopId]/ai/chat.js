@@ -1,3 +1,225 @@
+// backend/pages/api/shops/[shopId]/ai/chat.js
+
+import connectDB from '../../../../../lib/db.js';
+import Product from '../../../../../models/Product.js';
+import Order from '../../../../../models/Order.js';
+import User from '../../../../../models/User.js';
+import { authMiddleware } from '../../../../../lib/auth.js';
+
+// ✅ SMART RULE-BASED SYSTEM (Instant Responses)
+function getSmartResponse(userMessage, stats) {
+  const msg = userMessage.toLowerCase();
+
+  // Product queries
+  if (msg.match(/how many|total.*product|product.*count|number.*product/i)) {
+    return `You currently have **${stats.productCount} products** in your inventory${stats.lowStockCount > 0 ? `, with ${stats.lowStockCount} items running low on stock` : ''}.`;
+  }
+
+  // Today's earnings
+  if (msg.match(/today|earn.*today|revenue.*today|profit.*today/i)) {
+    return `**Today's Performance:**\n- Revenue: ₹${stats.todayRevenue.toFixed(2)}\n- Profit: ₹${stats.todayProfit.toFixed(2)}\n- Orders: ${stats.todayOrders}\n\n${stats.todayProfit > 0 ? '📈 Positive profit!' : '📉 Consider reviewing costs.'}`;
+  }
+
+  // Best/Most sold
+  if (msg.match(/best.*sell|most.*sold|top.*sell|which.*sold.*most/i)) {
+    if (stats.top5Selling[0].sold === 0) {
+      return 'No products have been sold yet.';
+    }
+    const top3 = stats.top5Selling.slice(0, 3);
+    return `**Top 3 Best Sellers:**\n${top3.map((p, i) => `${i + 1}. **${p.name}** - ${p.sold} units sold (₹${p.profit.toFixed(2)} profit)`).join('\n')}`;
+  }
+
+  // Worst/Least sold
+  if (msg.match(/worst|least.*sold|slow.*moving|not.*selling/i)) {
+    const slowMovers = stats.bottom5Selling.filter(p => p.sold < 5).slice(0, 3);
+    if (slowMovers.length === 0) {
+      return 'All products are selling well!';
+    }
+    return `**Slow-Moving Products:**\n${slowMovers.map(p => `- **${p.name}**: Only ${p.sold} units sold, ${p.stock} in stock`).join('\n')}\n\nConsider promotions or discounts.`;
+  }
+
+  // Profit queries
+  if (msg.match(/profit|most.*profitable|highest.*profit/i) && !msg.includes('today')) {
+    if (stats.top5Profit[0].profit === 0) {
+      return 'No profit data available yet.';
+    }
+    const top3 = stats.top5Profit.slice(0, 3);
+    return `**Most Profitable Products:**\n${top3.map((p, i) => `${i + 1}. **${p.name}** - ₹${p.profit.toFixed(2)} profit from ${p.sold} units`).join('\n')}`;
+  }
+
+  // Low stock
+  if (msg.match(/low.*stock|stock.*low|running.*out|restock/i)) {
+    if (stats.lowStockProducts.length === 0) {
+      return '✅ Good news! All products are well-stocked.';
+    }
+    const urgent = stats.lowStockProducts.slice(0, 5);
+    return `**⚠️ Low Stock Alert (${stats.lowStockProducts.length} items):**\n${urgent.map(p => `- **${p.name}**: ${p.stock} units left (threshold: ${p.lowStockThreshold})`).join('\n')}\n\nConsider restocking soon!`;
+  }
+
+  // Employee queries
+  if (msg.match(/employee|staff|worker|salary|payroll/i)) {
+    return `**Employee Summary:**\n- Total Employees: **${stats.employeeCount}**\n- Monthly Payroll: ₹${stats.totalSalary.toFixed(2)}\n- Labor Cost: ${stats.laborCostPercent}% of monthly revenue\n\n${parseFloat(stats.laborCostPercent) > 30 ? '⚠️ Labor costs are high.' : '✅ Labor costs are reasonable.'}`;
+  }
+
+  // This month
+  if (msg.match(/this.*month|current.*month|month/i) && !msg.includes('last')) {
+    return `**This Month's Performance:**\n- Revenue: ₹${stats.thisMonthRevenue.toFixed(2)}\n- Profit: ₹${stats.thisMonthProfit.toFixed(2)}\n- Orders: ${stats.thisMonthOrders}\n- Units Sold: ${stats.totalUnitsSold}\n\n${stats.thisMonthProfit > 0 ? '📈 Profitable month so far!' : '📉 Need improvement.'}`;
+  }
+
+  // Overall summary
+  if (msg.match(/overall|summary|total|all.*time|performance/i)) {
+    return `**Overall Business Summary:**\n- Products: ${stats.productCount} (${stats.lowStockCount} low stock)\n- Total Orders: ${stats.totalOrders}\n- All-Time Revenue: ₹${stats.totalRevenue.toFixed(2)}\n- All-Time Profit: ₹${stats.totalProfit.toFixed(2)}\n- Best Seller: **${stats.top5Selling[0].name}** (${stats.top5Selling[0].sold} units)\n\n${stats.totalProfit > 0 ? '✅ Business is profitable!' : '⚠️ Review pricing strategy.'}`;
+  }
+
+  // Revenue queries
+  if (msg.match(/revenue|earning|sales|income/i)) {
+    return `**Revenue Breakdown:**\n- Today: ₹${stats.todayRevenue.toFixed(2)}\n- This Month: ₹${stats.thisMonthRevenue.toFixed(2)}\n- All-Time: ₹${stats.totalRevenue.toFixed(2)}\n\nTotal orders: ${stats.totalOrders}`;
+  }
+
+  // Order queries
+  if (msg.match(/order|sale.*count|transaction/i)) {
+    return `**Order Statistics:**\n- Today: ${stats.todayOrders} orders\n- This Month: ${stats.thisMonthOrders} orders\n- All-Time: ${stats.totalOrders} orders\n\nAverage order value: ₹${stats.totalOrders > 0 ? (stats.totalRevenue / stats.totalOrders).toFixed(2) : '0.00'}`;
+  }
+
+  // Default help menu
+  return `I can help you with:\n\n📦 **"How many products do we have?"**\n💰 **"How much did we earn today?"**\n🏆 **"Which product sold the most?"**\n📉 **"Show slow-moving products"**\n⚠️ **"Which items are low on stock?"**\n👥 **"How many employees do we have?"**\n📊 **"This month's performance"**\n📈 **"Overall business summary"**\n\nTry asking any of these questions!`;
+}
+
+async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  await connectDB();
+  const { shopId } = req.query;
+
+  if (req.user.shopId !== shopId) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+
+  const { message, query } = req.body;
+  const userMessage = message || query;
+
+  if (!userMessage) {
+    return res.status(400).json({ message: 'Message is required' });
+  }
+
+  try {
+    // ✅ ULTRA-FAST DATA FETCH (Optimized queries)
+    const [products, recentOrders, employees] = await Promise.all([
+      Product.find({ shopId })
+        .select('name price cost stock lowStockThreshold')
+        .limit(200)
+        .lean()
+        .maxTimeMS(3000),
+      Order.find({ shopId })
+        .select('date total totalProfit items')
+        .sort({ date: -1 })
+        .limit(100)
+        .lean()
+        .maxTimeMS(3000),
+      User.find({ shopId, role: 'employee' })
+        .select('salary.amount')
+        .lean()
+        .maxTimeMS(2000),
+    ]);
+
+    // Calculate stats
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const todayOrders = recentOrders.filter(o => new Date(o.date) >= today);
+    const thisMonthOrders = recentOrders.filter(o => new Date(o.date) >= thisMonthStart);
+
+    const todayRevenue = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
+    const todayProfit = todayOrders.reduce((s, o) => s + (o.totalProfit || 0), 0);
+    const thisMonthRevenue = thisMonthOrders.reduce((s, o) => s + (o.total || 0), 0);
+    const thisMonthProfit = thisMonthOrders.reduce((s, o) => s + (o.totalProfit || 0), 0);
+    const totalRevenue = recentOrders.reduce((s, o) => s + (o.total || 0), 0);
+    const totalProfit = recentOrders.reduce((s, o) => s + (o.totalProfit || 0), 0);
+
+    const totalMonthlySalary = employees.reduce((s, e) => s + (e.salary?.amount || 0), 0);
+    const laborCostPercent = thisMonthRevenue > 0 ? (totalMonthlySalary / thisMonthRevenue * 100).toFixed(1) : '0.0';
+    const lowStockProducts = products.filter(p => p.stock <= (p.lowStockThreshold || 10));
+
+    // Product stats
+    const productStats = new Map();
+    products.forEach(p => {
+      productStats.set(p.name, { 
+        name: p.name, 
+        sold: 0, 
+        profit: 0, 
+        stock: p.stock, 
+        lowStockThreshold: p.lowStockThreshold || 10 
+      });
+    });
+
+    let totalUnitsSold = 0;
+    recentOrders.forEach(order => {
+      order.items?.forEach(item => {
+        const ps = productStats.get(item.name);
+        if (ps) {
+          ps.sold += item.quantity || 0;
+          ps.profit += ((item.price || 0) - (item.cost || 0)) * (item.quantity || 0);
+          totalUnitsSold += item.quantity || 0;
+        }
+      });
+    });
+
+    const allStats = Array.from(productStats.values());
+    const top5Selling = [...allStats].sort((a, b) => b.sold - a.sold).slice(0, 5);
+    const bottom5Selling = [...allStats].sort((a, b) => a.sold - b.sold).slice(0, 5);
+    const top5Profit = [...allStats].sort((a, b) => b.profit - a.profit).slice(0, 5);
+
+    const stats = {
+      productCount: products.length,
+      todayRevenue,
+      todayProfit,
+      todayOrders: todayOrders.length,
+      thisMonthRevenue,
+      thisMonthProfit,
+      thisMonthOrders: thisMonthOrders.length,
+      totalRevenue,
+      totalProfit,
+      totalOrders: recentOrders.length,
+      totalUnitsSold,
+      employeeCount: employees.length,
+      totalSalary: totalMonthlySalary,
+      laborCostPercent,
+      lowStockCount: lowStockProducts.length,
+      lowStockProducts: lowStockProducts.map(p => ({
+        name: p.name,
+        stock: p.stock,
+        lowStockThreshold: p.lowStockThreshold || 10
+      })),
+      top5Selling,
+      bottom5Selling,
+      top5Profit,
+    };
+
+    // ✅ GET INSTANT RESPONSE
+    const response = getSmartResponse(userMessage, stats);
+
+    return res.status(200).json({ reply: response });
+
+  } catch (error) {
+    console.error('Chat Error:', error);
+    return res.status(200).json({
+      reply: 'Sorry, I encountered an error. Please try asking:\n\n• "How many products do we have?"\n• "Today\'s revenue"\n• "Best selling product"',
+    });
+  }
+}
+
+export const config = {
+  maxDuration: 10,
+};
+
+export default authMiddleware(handler);
+
+
+
+
 // // backend/pages/api/shops/[shopId]/ai/chat.js
 // import connectDB from "../../../../../lib/db.js";
 // import Product from "../../../../../models/Product.js";
@@ -107,304 +329,6 @@
 
 // export default authMiddleware(handler);
 
-// backend/pages/api/shops/[shopId]/ai/chat.js
-
-import connectDB from '../../../../../lib/db.js';
-import Product from '../../../../../models/Product.js';
-import Order from '../../../../../models/Order.js';
-import User from '../../../../../models/User.js';
-import { authMiddleware } from '../../../../../lib/auth.js';
-import { getGeminiModel } from '../../../../../lib/gemini.js';
-
-async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
-  }
-
-  await connectDB();
-  const { shopId } = req.query;
-
-  if (req.user.shopId !== shopId) {
-    return res.status(403).json({ message: 'Access denied.' });
-  }
-
-  const { message, query } = req.body;
-  const userMessage = message || query;
-
-  if (!userMessage) {
-    return res.status(400).json({ message: 'Message is required' });
-  }
-
-  try {
-    const products = await Product.find({ shopId }).lean();
-    const orders = await Order.find({ shopId })
-      .sort({ date: -1 })
-      .limit(200)
-      .lean();
-    
-    // Get employees with salary data
-    const employees = await User.find({ shopId, role: 'employee' }).lean();
-
-    // Date calculations
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    lastMonthEnd.setHours(23, 59, 59, 999);
-
-    // Filter orders by time period
-    const todayOrders = orders.filter(o => new Date(o.date) >= today);
-    const thisMonthOrders = orders.filter(o => new Date(o.date) >= thisMonthStart);
-    const lastMonthOrders = orders.filter(o => {
-      const orderDate = new Date(o.date);
-      return orderDate >= lastMonthStart && orderDate <= lastMonthEnd;
-    });
-
-    // Today's stats
-    const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const todayProfit = todayOrders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-
-    // This month stats
-    const thisMonthRevenue = thisMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const thisMonthProfit = thisMonthOrders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-
-    // Last month stats
-    const lastMonthRevenue = lastMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const lastMonthProfit = lastMonthOrders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-
-    // Month-over-month comparison
-    const revenueChange = lastMonthRevenue > 0 
-      ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue * 100).toFixed(1)
-      : '0.0';
-    const profitChange = lastMonthProfit > 0
-      ? ((thisMonthProfit - lastMonthProfit) / lastMonthProfit * 100).toFixed(1)
-      : '0.0';
-
-    // Total stats
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const totalProfit = orders.reduce((sum, o) => sum + (o.totalProfit || 0), 0);
-
-    // Employee salary analysis
-    const totalMonthlySalary = employees.reduce((sum, emp) => sum + (emp.salary?.amount || 0), 0);
-    const laborCostPercentage = thisMonthRevenue > 0 
-      ? (totalMonthlySalary / thisMonthRevenue * 100).toFixed(1)
-      : '0.0';
-
-    // Employee performance tracking
-    const employeeStats = {};
-    orders.forEach(order => {
-      const biller = order.billerName;
-      if (!employeeStats[biller]) {
-        employeeStats[biller] = {
-          name: biller,
-          orderCount: 0,
-          totalRevenue: 0,
-          totalProfit: 0,
-        };
-      }
-      employeeStats[biller].orderCount++;
-      employeeStats[biller].totalRevenue += order.total || 0;
-      employeeStats[biller].totalProfit += order.totalProfit || 0;
-    });
-
-    const employeePerformance = Object.values(employeeStats)
-      .map(emp => ({
-        ...emp,
-        avgRevenuePerOrder: emp.orderCount > 0 ? (emp.totalRevenue / emp.orderCount).toFixed(2) : '0.00',
-        avgProfitPerOrder: emp.orderCount > 0 ? (emp.totalProfit / emp.orderCount).toFixed(2) : '0.00',
-      }))
-      .sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-    const lowStockProducts = products.filter(
-      (p) => p.stock <= (p.lowStockThreshold || 10)
-    );
-
-    // Product sales analysis
-    const productStats = new Map();
-    products.forEach(product => {
-      productStats.set(product.name, {
-        name: product.name,
-        unitsSold: 0,
-        revenue: 0,
-        profit: 0,
-        stock: product.stock,
-        price: product.price,
-        cost: product.cost,
-      });
-    });
-
-    orders.forEach((order) => {
-      order.items.forEach((item) => {
-        const existing = productStats.get(item.name);
-        if (existing) {
-          existing.unitsSold += item.quantity;
-          existing.revenue += item.price * item.quantity;
-          existing.profit += (item.price - item.cost) * item.quantity;
-        }
-      });
-    });
-
-    // Product bundle analysis (frequently bought together)
-    const productPairs = new Map();
-    orders.forEach(order => {
-      const itemNames = order.items.map(item => item.name);
-      for (let i = 0; i < itemNames.length; i++) {
-        for (let j = i + 1; j < itemNames.length; j++) {
-          const pair = [itemNames[i], itemNames[j]].sort().join(' + ');
-          productPairs.set(pair, (productPairs.get(pair) || 0) + 1);
-        }
-      }
-    });
-
-    const topBundles = Array.from(productPairs.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([pair, count]) => `${pair} (${count} times)`);
-
-    const allProductStats = Array.from(productStats.values());
-    const topSellingProducts = [...allProductStats]
-      .sort((a, b) => b.unitsSold - a.unitsSold)
-      .slice(0, 10);
-
-    const leastSellingProducts = [...allProductStats]
-      .sort((a, b) => a.unitsSold - b.unitsSold)
-      .slice(0, 10);
-
-    const topProfitProducts = [...allProductStats]
-      .sort((a, b) => b.profit - a.profit)
-      .slice(0, 10);
-
-    const productMargins = products.map(p => ({
-      name: p.name,
-      price: p.price,
-      cost: p.cost,
-      margin: p.price - p.cost,
-      marginPercent: ((p.price - p.cost) / p.price * 100).toFixed(1),
-      stock: p.stock
-    })).sort((a, b) => b.marginPercent - a.marginPercent);
-
-    const neverSoldProducts = allProductStats
-      .filter(p => p.unitsSold === 0)
-      .map(p => `${p.name} (Stock: ${p.stock})`);
-
-    // Category performance this month vs last month
-    const categoryStatsThisMonth = {};
-    const categoryStatsLastMonth = {};
-
-    thisMonthOrders.forEach(order => {
-      order.items.forEach(item => {
-        const product = products.find(p => p.name === item.name);
-        const category = product?.category || 'Unknown';
-        if (!categoryStatsThisMonth[category]) {
-          categoryStatsThisMonth[category] = { revenue: 0, profit: 0 };
-        }
-        categoryStatsThisMonth[category].revenue += item.price * item.quantity;
-        categoryStatsThisMonth[category].profit += (item.price - item.cost) * item.quantity;
-      });
-    });
-
-    lastMonthOrders.forEach(order => {
-      order.items.forEach(item => {
-        const product = products.find(p => p.name === item.name);
-        const category = product?.category || 'Unknown';
-        if (!categoryStatsLastMonth[category]) {
-          categoryStatsLastMonth[category] = { revenue: 0, profit: 0 };
-        }
-        categoryStatsLastMonth[category].revenue += item.price * item.quantity;
-        categoryStatsLastMonth[category].profit += (item.price - item.cost) * item.quantity;
-      });
-    });
-
-    const categoryComparison = Object.keys({...categoryStatsThisMonth, ...categoryStatsLastMonth})
-      .map(category => {
-        const thisMonth = categoryStatsThisMonth[category] || { revenue: 0, profit: 0 };
-        const lastMonth = categoryStatsLastMonth[category] || { revenue: 0, profit: 0 };
-        const revenueGrowth = lastMonth.revenue > 0 
-          ? ((thisMonth.revenue - lastMonth.revenue) / lastMonth.revenue * 100).toFixed(1)
-          : 'N/A';
-        return `${category}: This Month ₹${thisMonth.revenue.toFixed(2)}, Last Month ₹${lastMonth.revenue.toFixed(2)}, Change: ${revenueGrowth}%`;
-      });
-
-    const shopContext = `You are an AI business assistant for a retail shop. Answer the user's question using this comprehensive data:
-
-**TODAY'S PERFORMANCE:**
-- Revenue: ₹${todayRevenue.toFixed(2)}
-- Profit: ₹${todayProfit.toFixed(2)}
-- Orders: ${todayOrders.length}
-
-**THIS MONTH vs LAST MONTH:**
-- This Month Revenue: ₹${thisMonthRevenue.toFixed(2)} | Last Month: ₹${lastMonthRevenue.toFixed(2)} | Change: ${revenueChange}%
-- This Month Profit: ₹${thisMonthProfit.toFixed(2)} | Last Month: ₹${lastMonthProfit.toFixed(2)} | Change: ${profitChange}%
-- This Month Orders: ${thisMonthOrders.length} | Last Month: ${lastMonthOrders.length}
-
-**CATEGORY PERFORMANCE (Month-over-Month):**
-${categoryComparison.join('\n')}
-
-**OVERALL STATISTICS:**
-- Total Products: ${products.length}
-- Total Orders: ${orders.length}
-- All-Time Revenue: ₹${totalRevenue.toFixed(2)}
-- All-Time Profit: ₹${totalProfit.toFixed(2)}
-
-**EMPLOYEE DATA:**
-- Total Employees: ${employees.length}
-- Total Monthly Salaries: ₹${totalMonthlySalary.toFixed(2)}
-- Labor Cost as % of Revenue: ${laborCostPercentage}%
-- Employee Details: ${employees.map(e => `${e.name} (₹${e.salary?.amount || 0}/month, Status: ${e.salary?.status || 'N/A'})`).join(', ')}
-
-**EMPLOYEE PERFORMANCE:**
-${employeePerformance.map((emp, i) => `${i + 1}. ${emp.name}: ${emp.orderCount} orders, Revenue: ₹${emp.totalRevenue.toFixed(2)}, Profit: ₹${emp.totalProfit.toFixed(2)}, Avg/Order: ₹${emp.avgRevenuePerOrder}`).join('\n')}
-
-**PRODUCT BUNDLES (Frequently Bought Together):**
-${topBundles.length > 0 ? topBundles.join('\n') : 'No bundle patterns detected yet'}
-
-**TOP 10 BEST SELLING PRODUCTS:**
-${topSellingProducts.map((p, i) => `${i + 1}. ${p.name}: ${p.unitsSold} units, Revenue: ₹${p.revenue.toFixed(2)}, Profit: ₹${p.profit.toFixed(2)}`).join('\n')}
-
-**TOP 10 LEAST SELLING:**
-${leastSellingProducts.map((p, i) => `${i + 1}. ${p.name}: ${p.unitsSold} units, Stock: ${p.stock}`).join('\n')}
-
-**NEVER SOLD (${neverSoldProducts.length} items):**
-${neverSoldProducts.length > 0 ? neverSoldProducts.slice(0, 10).join(', ') : 'All products have sales'}
-
-**TOP PROFIT PRODUCTS:**
-${topProfitProducts.slice(0, 5).map((p, i) => `${i + 1}. ${p.name}: ₹${p.profit.toFixed(2)}`).join('\n')}
-
-**PROFIT MARGINS (Top 5):**
-${productMargins.slice(0, 5).map((p, i) => `${i + 1}. ${p.name}: ${p.marginPercent}% margin (Price: ₹${p.price}, Cost: ₹${p.cost})`).join('\n')}
-
-**LOW STOCK ALERTS:**
-${lowStockProducts.length > 0 ? lowStockProducts.slice(0, 5).map(p => `${p.name} (${p.stock} units)`).join(', ') : 'No low stock items'}
-
-**USER QUESTION:** ${userMessage}
-
-Provide a clear, data-driven answer with specific numbers, product names, and employee names. Use Indian Rupees (₹). Be concise and actionable.`;
-
-    const model = getGeminiModel();
-    const result = await model.generateContent(shopContext);
-    const response = await result.response;
-    const aiResponse = response.text();
-
-    res.status(200).json({ reply: aiResponse });
-  } catch (error) {
-    console.error('AI Chat Error:', error);
-    res.status(500).json({
-      reply: `I encountered an error processing your request. Error: ${error.message}`,
-    });
-  }
-}
-
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '1mb',
-    },
-  },
-};
-
-export default authMiddleware(handler);
 
 
 

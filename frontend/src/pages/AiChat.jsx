@@ -57,32 +57,45 @@ const AiChat = () => {
   }, [messages]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  e.preventDefault();
+  if (!input.trim() || isLoading) return;
 
-    const userMessage = { sender: "user", text: input };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+  const userMessage = { sender: 'user', text: input };
+  const userInput = input; // Save the input before clearing
+  
+  setMessages((prev) => [...prev, userMessage]);
+  setInput('');
+  setIsLoading(true);
 
-    try {
-      const { answer } = await shopService.getAiChatResponse(
-        user.shopId,
-        input
-      );
-      const aiMessage = { sender: "ai", text: answer };
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      const errorMessage = {
-        sender: "ai",
-        text: "Sorry, I ran into an error. Please try again.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-      console.error("Failed to get AI response:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  try {
+    console.log('Sending to AI:', userInput);
+    
+    // Send just the string, shopService will wrap it
+    const response = await shopService.getAiChatResponse(user.shopId, userInput);
+    
+    console.log('AI Response:', response);
+
+    const aiMessage = { 
+      sender: 'ai', 
+      text: response.reply || response.answer || 'No response received' 
+    };
+    
+    setMessages((prev) => [...prev, aiMessage]);
+  } catch (error) {
+    console.error('AI Chat Error:', error);
+    console.error('Error response:', error.response?.data);
+    
+    const errorMessage = {
+      sender: 'ai',
+      text: error.response?.data?.message || 'Sorry, I ran into an error. Please try again.',
+    };
+    setMessages((prev) => [...prev, errorMessage]);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
 
   const clearChatHistory = () => {
     localStorage.removeItem(CHAT_STORAGE_KEY);
