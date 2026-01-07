@@ -1,5 +1,3 @@
-// backend/pages/api/shops/[shopId]/orders/index.js
-
 import connectDB from "../../../../../lib/db.js";
 import Order from "../../../../../models/Order.js";
 import Product from "../../../../../models/Product.js";
@@ -60,27 +58,36 @@ async function handler(req, res) {
 
   await connectDB();
   const { shopId } = req.query;
-  const { customerName, items } = req.body;
+  const { customerName, billerName, items } = req.body;
 
-  // ===== DETAILED LOGGING =====
-  console.log("[ORDER] Received request body:", JSON.stringify(req.body, null, 2));
-  console.log("[ORDER] Items received:", items);
-  console.log("[ORDER] User from token:", req.user);
-  console.log("[ORDER] Biller name will be:", req.user?.name);
+  switch (req.method) {
+    case "POST":
+      const { customerName, items } = req.body;
+      
+      // ===== ADD DETAILED LOGGING =====
+      console.log("[ORDER] Received request body:", JSON.stringify(req.body, null, 2));
+      console.log("[ORDER] Items received:", items);
+      console.log("[ORDER] User from token:", req.user);
+      console.log("[ORDER] Biller name will be:", req.user?.name);
+      
+      // Validation
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        console.error("[ORDER] Validation failed: items is invalid");
+        return res.status(400).json({ message: "Order must contain items." });
+      }
+      
+      if (!req.user || !req.user.name) {
+        console.error("[ORDER] Validation failed: billerName missing from token");
+        return res.status(400).json({ message: "Biller name not found in authentication token." });
+      }
+    }
 
-  // ===== VALIDATION =====
   if (req.user.shopId !== shopId) {
     return res.status(403).json({ message: "Access denied." });
   }
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    console.error("[ORDER] Validation failed: items is invalid");
-    return res.status(400).json({ message: "Order must contain items." });
-  }
-
-  if (!req.user || !req.user.name) {
-    console.error("[ORDER] Validation failed: billerName missing from token");
-    return res.status(400).json({ message: "Biller name not found in authentication token." });
+  if (!billerName || !items || items.length === 0) {
+    return res.status(400).json({ message: "Missing required fields" });
   }
 
   try {
@@ -89,31 +96,21 @@ async function handler(req, res) {
     let totalProfit = 0;
     const orderItems = [];
 
-    console.log("[ORDER] Starting product validation for", items.length, "items");
-
     for (const item of items) {
-      console.log(`[ORDER] Processing product: ${item.productId}, quantity: ${item.quantity}`);
-
       const product = await Product.findOne({
         _id: item.productId,
         shopId: shopId,
       });
 
-      console.log(`[ORDER] Product found:`, product ? product.name : "NOT FOUND");
-
       if (!product) {
-        console.error(`[ORDER] ERROR: Product ${item.productId} not found in shop ${shopId}`);
-        return res.status(400).json({
-          message: `Product not found: ${item.productId}`,
-        });
+        return res
+          .status(404)
+          .json({ message: `Product ${item.productId} not found` });
       }
 
-      console.log(`[ORDER] Product "${product.name}" - Stock: ${product.stock}, Requested: ${item.quantity}`);
-
       if (product.stock < item.quantity) {
-        console.error(`[ORDER] ERROR: Insufficient stock for "${product.name}"`);
         return res.status(400).json({
-          message: `Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`,
+          message: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
         });
       }
 
@@ -135,7 +132,6 @@ async function handler(req, res) {
       // Update stock
       product.stock -= item.quantity;
       await product.save();
-      console.log(`[ORDER] Updated stock for "${product.name}": ${product.stock + item.quantity} → ${product.stock}`);
 
       // Create low stock notification if needed
       if (product.stock <= product.lowStockThreshold) {
@@ -154,19 +150,15 @@ async function handler(req, res) {
             message: `Low stock alert: ${product.name} has only ${product.stock} units left`,
             isRead: false,
           });
-          console.log(`[ORDER] Created low stock notification for "${product.name}"`);
         }
       }
     }
-
-    console.log("[ORDER] All products validated. Creating order...");
-    console.log("[ORDER] Total:", total, "Profit:", totalProfit);
 
     // Create order
     const newOrder = await Order.create({
       shopId: shopId,
       customerName: customerName || "Walk-in Customer",
-      billerName: req.user.name,
+      billerName: billerName,
       items: orderItems,
       total: total,
       totalProfit: totalProfit,
@@ -188,9 +180,9 @@ async function handler(req, res) {
       if (isDevelopment) {
         // DEVELOPMENT: Save to local file system
         console.log("[INVOICE] Development mode: Saving PDF locally");
-
+        
         const invoicesDir = path.join(process.cwd(), "public", "invoices");
-
+        
         // Create directory if it doesn't exist
         if (!fs.existsSync(invoicesDir)) {
           fs.mkdirSync(invoicesDir, { recursive: true });
@@ -199,20 +191,20 @@ async function handler(req, res) {
 
         const filename = `invoice-${newOrder._id}.pdf`;
         const filepath = path.join(invoicesDir, filename);
-
+        
         fs.writeFileSync(filepath, invoiceBuffer);
         pdfPath = `/invoices/${filename}`;
-
+        
         console.log("[INVOICE] PDF saved locally at:", filepath);
       } else {
         // PRODUCTION: Upload to Vercel Blob
         console.log("[INVOICE] Production mode: Uploading to Vercel Blob");
-
+        
         const blob = await put(`invoice-${newOrder._id}.pdf`, invoiceBuffer, {
           access: "public",
           contentType: "application/pdf",
         });
-
+        
         pdfPath = blob.url;
         console.log("[INVOICE] PDF uploaded to Vercel Blob:", pdfPath);
       }
@@ -233,7 +225,7 @@ async function handler(req, res) {
       // If PDF generation fails, log but don't fail the order
       console.error("[INVOICE] PDF generation failed:", pdfError);
       console.log("[INVOICE] Order created successfully, but invoice PDF failed");
-
+      
       // Create invoice record with error path
       await Invoice.create({
         shopId: shopId,
@@ -253,10 +245,7 @@ async function handler(req, res) {
     });
   } catch (error) {
     console.error("[ORDER] Error:", error);
-    res.status(500).json({ 
-      message: "Internal Server Error", 
-      error: error.message 
-    });
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 }
 
