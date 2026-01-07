@@ -82,7 +82,22 @@ const AiChat = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  };// Around line 50-60, find the catch block and replace with:
+} catch (error) {
+  console.error('Chat error:', error);
+  
+  // Show the actual error to user temporarily
+  setMessages(prev => [
+    ...prev,
+    { 
+      sender: 'ai', 
+      text: `ERROR: ${error.message}\n\nFull error: ${JSON.stringify(error, null, 2)}` 
+    },
+  ]);
+  
+  setIsLoading(false);
+}
+};
 
   const clearChatHistory = () => {
     localStorage.removeItem(CHAT_STORAGE_KEY);
