@@ -114,16 +114,17 @@ import Product from '../../../../../models/Product.js';
 import Order from '../../../../../models/Order.js';
 import User from '../../../../../models/User.js';
 import { authMiddleware } from '../../../../../lib/auth.js';
-import { getGeminiModel } from '../../../../../lib/gemini.js';
+import { getGeminiModel, generateWithTimeout } from '../../../../../lib/gemini.js';
 
+// ✅ Clean markdown formatting
 function cleanMarkdown(text) {
   return text
-    .replace(/\*\*/g, '')
-    .replace(/\*/g, '')
-    .replace(/^#+\s/gm, '')
-    .replace(/`/g, '')
-    .replace(/~/g, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\*\*/g, '')        // Remove bold **text**
+    .replace(/\*/g, '')          // Remove italic *text*
+    .replace(/^#+\s/gm, '')      // Remove # headers
+    .replace(/`/g, '')           // Remove code blocks `
+    .replace(/~/g, '')           // Remove strikethrough ~
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')  // Convert [text](url) to text
     .trim();
 }
 
@@ -147,7 +148,7 @@ async function handler(req, res) {
   }
 
   try {
-    // ✅ OPTIMIZED QUERIES with timeout and limited fields
+    // ✅ OPTIMIZED PARALLEL QUERIES with timeout and limited fields
     const [products, orders, employees] = await Promise.all([
       Product.find({ shopId })
         .select('name price cost stock lowStockThreshold category')
@@ -166,7 +167,7 @@ async function handler(req, res) {
         .maxTimeMS(2000)
     ]);
 
-    // Quick date calculations
+    // ✅ FAST DATE CALCULATIONS
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -174,24 +175,60 @@ async function handler(req, res) {
     const todayOrders = orders.filter(o => new Date(o.date) >= today);
     const thisMonthOrders = orders.filter(o => new Date(o.date) >= thisMonthStart);
 
+    // Today's stats
     const todayRevenue = todayOrders.reduce((s, o) => s + (o.total || 0), 0);
     const todayProfit = todayOrders.reduce((s, o) => s + (o.totalProfit || 0), 0);
+
+    // This month stats
     const thisMonthRevenue = thisMonthOrders.reduce((s, o) => s + (o.total || 0), 0);
     const thisMonthProfit = thisMonthOrders.reduce((s, o) => s + (o.totalProfit || 0), 0);
 
-    // Employee salary analysis
+    // Total stats
+    const totalRevenue = orders.reduce((s, o) => s + (o.total || 0), 0);
+    const totalProfit = orders.reduce((s, o) => s + (o.totalProfit || 0), 0);
+
+    // ✅ EMPLOYEE SALARY ANALYSIS
     const totalMonthlySalary = employees.reduce((s, e) => s + (e.salary?.amount || 0), 0);
     const sortedBySalary = [...employees].sort((a, b) => (a.salary?.amount || 0) - (b.salary?.amount || 0));
     const lowestPaidEmployee = sortedBySalary[0];
     const highestPaidEmployee = sortedBySalary[sortedBySalary.length - 1];
+    const avgSalary = employees.length > 0 ? (totalMonthlySalary / employees.length).toFixed(0) : '0';
+    const laborCostPercentage = thisMonthRevenue > 0 
+      ? (totalMonthlySalary / thisMonthRevenue * 100).toFixed(1)
+      : '0.0';
 
-    // Product stats
+    // ✅ EMPLOYEE PERFORMANCE
+    const employeeStats = {};
+    orders.forEach(order => {
+      const biller = order.billerName;
+      if (!employeeStats[biller]) {
+        employeeStats[biller] = {
+          name: biller,
+          orderCount: 0,
+          totalRevenue: 0,
+          totalProfit: 0,
+        };
+      }
+      employeeStats[biller].orderCount++;
+      employeeStats[biller].totalRevenue += order.total || 0;
+      employeeStats[biller].totalProfit += order.totalProfit || 0;
+    });
+
+    const employeePerformance = Object.values(employeeStats)
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // ✅ PRODUCT ANALYSIS
     const productStats = new Map();
     products.forEach(p => {
       productStats.set(p.name, {
         name: p.name,
         unitsSold: 0,
+        revenue: 0,
+        profit: 0,
         stock: p.stock,
+        price: p.price,
+        cost: p.cost,
+        category: p.category,
         lowStockThreshold: p.lowStockThreshold || 10
       });
     });
@@ -199,71 +236,149 @@ async function handler(req, res) {
     orders.forEach(order => {
       order.items?.forEach(item => {
         const ps = productStats.get(item.name);
-        if (ps) ps.unitsSold += item.quantity || 0;
+        if (ps) {
+          ps.unitsSold += item.quantity || 0;
+          ps.revenue += (item.price || 0) * (item.quantity || 0);
+          ps.profit += ((item.price || 0) - (item.cost || 0)) * (item.quantity || 0);
+        }
       });
     });
 
     const allStats = Array.from(productStats.values());
     const topSellingProducts = [...allStats].sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 5);
     const leastSellingProducts = [...allStats].sort((a, b) => a.unitsSold - b.unitsSold).slice(0, 5);
+    const topProfitProducts = [...allStats].sort((a, b) => b.profit - a.profit).slice(0, 5);
     const lowStockProducts = allStats.filter(p => p.stock <= p.lowStockThreshold);
+    const neverSoldProducts = allStats.filter(p => p.unitsSold === 0);
 
-    // ✅ SHORTER CONTEXT (reduces tokens)
-    const shopContext = `Business AI. Answer briefly using this data:
+    // ✅ PRODUCT MARGINS
+    const productMargins = products
+      .map(p => ({
+        name: p.name,
+        marginPercent: p.price > 0 ? (((p.price - p.cost) / p.price) * 100).toFixed(1) : '0.0'
+      }))
+      .sort((a, b) => parseFloat(b.marginPercent) - parseFloat(a.marginPercent))
+      .slice(0, 5);
 
-TODAY: Revenue ₹${todayRevenue.toFixed(0)}, Profit ₹${todayProfit.toFixed(0)}, Orders ${todayOrders.length}
-THIS MONTH: Revenue ₹${thisMonthRevenue.toFixed(0)}, Profit ₹${thisMonthProfit.toFixed(0)}, Orders ${thisMonthOrders.length}
-
-EMPLOYEES (${employees.length} total, Monthly Payroll: ₹${totalMonthlySalary}):
-${sortedBySalary.map((e, i) => `${i + 1}. ${e.name}: ₹${e.salary?.amount || 0}/month`).join('\n')}
-Lowest Paid: ${lowestPaidEmployee?.name} (₹${lowestPaidEmployee?.salary?.amount || 0})
-Highest Paid: ${highestPaidEmployee?.name} (₹${highestPaidEmployee?.salary?.amount || 0})
-
-TOP 5 SELLERS: ${topSellingProducts.map(p => `${p.name}(${p.unitsSold} units)`).join(', ')}
-SLOW MOVERS: ${leastSellingProducts.slice(0, 3).map(p => `${p.name}(${p.unitsSold})`).join(', ')}
-LOW STOCK (${lowStockProducts.length}): ${lowStockProducts.slice(0, 3).map(p => `${p.name}(${p.stock})`).join(', ')}
-
-Q: ${userMessage}
-
-Answer in plain text (no markdown), under 150 words, with specific names and numbers.`;
-
-    const model = getGeminiModel();
-
-    // ✅ ADD TIMEOUT PROTECTION
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('AI_TIMEOUT')), 7000);
+    // ✅ PRODUCT BUNDLES
+    const productPairs = new Map();
+    orders.forEach(order => {
+      const itemNames = order.items?.map(item => item.name) || [];
+      for (let i = 0; i < itemNames.length; i++) {
+        for (let j = i + 1; j < itemNames.length; j++) {
+          const pair = [itemNames[i], itemNames[j]].sort().join(' + ');
+          productPairs.set(pair, (productPairs.get(pair) || 0) + 1);
+        }
+      }
     });
 
-    let aiResponse;
+    const topBundles = Array.from(productPairs.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([pair, count]) => `${pair} (${count}x)`);
+
+    // ✅ CATEGORY PERFORMANCE
+    const categoryStats = {};
+    thisMonthOrders.forEach(order => {
+      order.items?.forEach(item => {
+        const product = products.find(p => p.name === item.name);
+        const category = product?.category || 'Unknown';
+        if (!categoryStats[category]) {
+          categoryStats[category] = { revenue: 0, profit: 0 };
+        }
+        categoryStats[category].revenue += (item.price || 0) * (item.quantity || 0);
+        categoryStats[category].profit += ((item.price || 0) - (item.cost || 0)) * (item.quantity || 0);
+      });
+    });
+
+    const topCategories = Object.entries(categoryStats)
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 3)
+      .map(([cat, stats]) => `${cat} (₹${stats.revenue.toFixed(0)})`);
+
+    // ✅ COMPACT CONTEXT (reduced by 80%)
+    const shopContext = `Business AI Assistant. Answer concisely using this data:
+
+TODAY'S PERFORMANCE:
+Revenue: ₹${todayRevenue.toFixed(0)}, Profit: ₹${todayProfit.toFixed(0)}, Orders: ${todayOrders.length}
+
+THIS MONTH:
+Revenue: ₹${thisMonthRevenue.toFixed(0)}, Profit: ₹${thisMonthProfit.toFixed(0)}, Orders: ${thisMonthOrders.length}
+
+ALL-TIME:
+Revenue: ₹${totalRevenue.toFixed(0)}, Profit: ₹${totalProfit.toFixed(0)}, Orders: ${orders.length}
+
+EMPLOYEES (${employees.length} total):
+${sortedBySalary.map((e, i) => `${i + 1}. ${e.name}: ₹${e.salary?.amount || 0}/month (${e.salary?.status || 'unpaid'})`).join('\n')}
+Lowest: ${lowestPaidEmployee?.name || 'N/A'} (₹${lowestPaidEmployee?.salary?.amount || 0})
+Highest: ${highestPaidEmployee?.name || 'N/A'} (₹${highestPaidEmployee?.salary?.amount || 0})
+Average: ₹${avgSalary}
+Total Payroll: ₹${totalMonthlySalary}
+Labor Cost: ${laborCostPercentage}% of revenue
+
+EMPLOYEE WORK PERFORMANCE:
+${employeePerformance.map((e, i) => `${i + 1}. ${e.name}: ${e.orderCount} orders, ₹${e.totalRevenue.toFixed(0)} revenue, ₹${e.totalProfit.toFixed(0)} profit`).join('\n')}
+
+TOP 5 BEST SELLERS:
+${topSellingProducts.map((p, i) => `${i + 1}. ${p.name}: ${p.unitsSold} units, ₹${p.revenue.toFixed(0)} revenue`).join('\n')}
+
+SLOW MOVERS:
+${leastSellingProducts.slice(0, 3).map(p => `${p.name} (${p.unitsSold} units)`).join(', ')}
+
+TOP PROFIT PRODUCTS:
+${topProfitProducts.slice(0, 3).map(p => `${p.name} (₹${p.profit.toFixed(0)})`).join(', ')}
+
+BEST MARGINS:
+${productMargins.map(p => `${p.name} (${p.marginPercent}%)`).join(', ')}
+
+LOW STOCK (${lowStockProducts.length} items):
+${lowStockProducts.slice(0, 5).map(p => `${p.name} (${p.stock} left)`).join(', ')}
+
+NEVER SOLD (${neverSoldProducts.length} items):
+${neverSoldProducts.length > 0 ? neverSoldProducts.slice(0, 3).map(p => p.name).join(', ') : 'None'}
+
+PRODUCT BUNDLES:
+${topBundles.length > 0 ? topBundles.join(', ') : 'None yet'}
+
+TOP CATEGORIES:
+${topCategories.join(', ')}
+
+USER QUESTION: ${userMessage}
+
+INSTRUCTIONS:
+- Use exact names and amounts from data above
+- Answer in plain text (no asterisks, hashes, or markdown)
+- Keep response under 150 words
+- Be specific with numbers
+- Use ₹ for rupees`;
+
+    // ✅ AI CALL WITH TIMEOUT PROTECTION
+    const model = getGeminiModel();
+    
     try {
-      const result = await Promise.race([
-        model.generateContent(shopContext),
-        timeoutPromise
-      ]);
-      const response = await result.response;
-      aiResponse = response.text();
+      const aiResponse = await generateWithTimeout(model, shopContext, 7000);
+      const cleanedResponse = cleanMarkdown(aiResponse);
+      res.status(200).json({ reply: cleanedResponse });
     } catch (error) {
       console.error('AI Error:', error.message);
       
-      // Graceful fallback
+      // ✅ GRACEFUL FALLBACK
       if (error.message === 'AI_TIMEOUT') {
-        aiResponse = `I can help you with:
+        const fallbackResponse = `I can help you with:
 
-1. "How much did we earn today?"
-2. "Which employee has the lowest salary?"
-3. "Show top selling products"
-4. "Which items are low on stock?"
-5. "This month's performance"
-6. "Employee performance"
+1. "How much did we earn today?" - Revenue: ₹${todayRevenue.toFixed(0)}, Profit: ₹${todayProfit.toFixed(0)}
+2. "Which employee has lowest salary?" - ${lowestPaidEmployee?.name || 'N/A'} at ₹${lowestPaidEmployee?.salary?.amount || 0}
+3. "Top selling products?" - ${topSellingProducts[0]?.name || 'N/A'} (${topSellingProducts[0]?.unitsSold || 0} units)
+4. "Low stock items?" - ${lowStockProducts.length} items need restocking
+5. "This month's performance?" - ₹${thisMonthRevenue.toFixed(0)} revenue, ${thisMonthOrders.length} orders
 
-Please ask a specific question!`;
+Ask a specific question!`;
+        
+        res.status(200).json({ reply: fallbackResponse });
       } else {
         throw error;
       }
     }
-
-    const cleanedResponse = cleanMarkdown(aiResponse);
-    res.status(200).json({ reply: cleanedResponse });
 
   } catch (error) {
     console.error('Chat Error:', error);
