@@ -1,4 +1,4 @@
-// frontend/src/pages/ManageStock.jsx - UPDATED WITH BETTER NULL HANDLING
+// frontend/src/pages/ManageStock.jsx
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../hooks/useAuth";
@@ -33,12 +33,12 @@ const ManageStock = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   
-  // Form states
+  // Form states - includes 'cost'
   const [formData, setFormData] = useState({
     name: "",
     category: "",
     price: "",
-    cost: "",
+    cost: "", // Initialized cost
     stock: "",
   });
 
@@ -48,17 +48,12 @@ const ManageStock = () => {
     
     try {
       setLoading(true);
-      console.log("Fetching forecast data for shop:", user.shopId);
-      
-      // Fetch forecast data
+      // Fetch forecast data (which includes product details)
       const forecastData = await shopService.getForecast(user.shopId);
-      console.log("Forecast data received:", forecastData);
-      
       setProducts(forecastData || []);
       setError(null);
     } catch (err) {
       console.error("Error fetching forecast:", err);
-      console.error("Error response:", err.response?.data);
       setError("Failed to fetch product data.");
     } finally {
       setLoading(false);
@@ -99,7 +94,7 @@ const ManageStock = () => {
       currency: "INR",
     }).format(amount || 0);
 
-  // Format forecast days - WITH BETTER NULL HANDLING
+  // Format forecast days
   const formatForecastDays = (days) => {
     if (days === undefined || days === null || isNaN(days)) return "No data";
     if (days === Infinity) return "Never";
@@ -110,7 +105,7 @@ const ManageStock = () => {
     return `${Math.round(days / 30)}m`;
   };
 
-  // Get forecast color class - WITH BETTER NULL HANDLING
+  // Get forecast color class
   const getForecastColorClass = (days) => {
     if (days === undefined || days === null || isNaN(days)) return "text-gray-400";
     if (days === Infinity) return "text-gray-400";
@@ -121,24 +116,26 @@ const ManageStock = () => {
     return "text-green-600";
   };
 
-  // Format average daily sales - WITH BETTER NULL HANDLING
+  // Format average daily sales
   const formatAvgSales = (avg) => {
     if (avg === undefined || avg === null || isNaN(avg)) return "0.00";
     return avg.toFixed(2);
   };
 
+  // Open Add Modal
   const handleAdd = () => {
     setFormData({ name: "", category: "", price: "", cost: "", stock: "" });
     setIsAddModalOpen(true);
   };
 
+  // Open Edit Modal
   const handleEdit = (product) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
       category: product.category,
       price: product.price,
-      cost: product.cost,
+      cost: product.cost || "", // Handle missing cost
       stock: product.stock,
     });
     setIsEditModalOpen(true);
@@ -163,7 +160,7 @@ const ManageStock = () => {
       await shopService.addProduct(user.shopId, {
         ...formData,
         price: parseFloat(formData.price),
-        cost: parseFloat(formData.cost),
+        cost: parseFloat(formData.cost), // Send cost
         stock: parseInt(formData.stock, 10),
       });
       setIsAddModalOpen(false);
@@ -179,6 +176,7 @@ const ManageStock = () => {
     try {
       await shopService.updateProduct(user.shopId, editingProduct._id, {
         price: parseFloat(formData.price),
+        cost: parseFloat(formData.cost), // Send updated cost
         stock: parseInt(formData.stock, 10),
       });
       setIsEditModalOpen(false);
@@ -225,13 +223,13 @@ const ManageStock = () => {
 
       {/* Filters */}
       <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 space-y-4">
+        {/* ... Filter UI remains same ... */}
         <div className="flex items-center gap-2 text-gray-700 font-semibold">
           <Filter size={20} />
           <span>Filters</span>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
@@ -243,7 +241,6 @@ const ManageStock = () => {
             />
           </div>
 
-          {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -256,7 +253,6 @@ const ManageStock = () => {
             ))}
           </select>
 
-          {/* Low Stock Toggle */}
           <label className="flex items-center gap-3 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
             <input
               type="checkbox"
@@ -275,18 +271,10 @@ const ManageStock = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Product Name
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Category
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Price
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Current Stock
-                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Product Name</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Price</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Current Stock</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   <div className="flex items-center gap-1">
                     <TrendingUp size={16} />
@@ -294,36 +282,21 @@ const ManageStock = () => {
                   </div>
                 </th>
                 {user?.role === "owner" && (
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => {
-                // SAFELY ACCESS FORECAST DATA
                 const forecastDays = product.forecast?.daysUntilStockOut;
                 const avgSales = product.forecast?.averageDailySales;
                 
                 return (
                   <tr key={product._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {product.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {product.category}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">
-                      {formatCurrency(product.price)}
-                    </td>
-                    <td
-                      className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${
-                        product.stock <= (product.lowStockThreshold || LOW_STOCK_THRESHOLD)
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">{formatCurrency(product.price)}</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${product.stock <= (product.lowStockThreshold || LOW_STOCK_THRESHOLD) ? "text-red-600" : "text-green-600"}`}>
                       {product.stock}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -339,16 +312,10 @@ const ManageStock = () => {
                     {user?.role === "owner" && (
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(product)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          >
+                          <button onClick={() => handleEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
                             <Pencil size={18} />
                           </button>
-                          <button
-                            onClick={() => handleDelete(product._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                          >
+                          <button onClick={() => handleDelete(product._id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition">
                             <Trash2 size={18} />
                           </button>
                         </div>
@@ -362,66 +329,75 @@ const ManageStock = () => {
           {filteredProducts.length === 0 && (
             <div className="text-center py-16">
               <Package className="mx-auto text-gray-300 mb-4" size={64} />
-              <p className="text-gray-500 text-lg font-medium">
-                No products found
-              </p>
-              <p className="text-gray-400 text-sm mt-2">
-                Try adjusting your filters
-              </p>
+              <p className="text-gray-500 text-lg font-medium">No products found</p>
+              <p className="text-gray-400 text-sm mt-2">Try adjusting your filters</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Add Product Modal */}
-      <Modal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="Add New Product"
-      >
+      <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add New Product">
         <form onSubmit={handleAddSubmit} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Product Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
-          <input
-            type="text"
-            placeholder="Category"
-            value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Price"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Cost"
-            value={formData.cost}
-            onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
-          <input
-            type="number"
-            placeholder="Initial Stock"
-            value={formData.stock}
-            onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-            required
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Product Name</label>
+            <input
+              type="text"
+              placeholder="e.g. Lays Chips"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Category</label>
+            <input
+              type="text"
+              placeholder="e.g. Snacks"
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Selling Price (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 20"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Cost Price (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="e.g. 15"
+                value={formData.cost}
+                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Initial Stock</label>
+            <input
+              type="number"
+              placeholder="e.g. 50"
+              value={formData.stock}
+              onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            />
+          </div>
           <button
             type="submit"
             className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200"
@@ -442,9 +418,7 @@ const ManageStock = () => {
       >
         <form onSubmit={handleEditSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Product Name (Read-only)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name (Read-only)</label>
             <input
               type="text"
               value={formData.name}
@@ -452,23 +426,34 @@ const ManageStock = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Price
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-            />
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.cost}
+                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                required
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+            </div>
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Stock
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
             <input
               type="number"
               value={formData.stock}
@@ -477,6 +462,7 @@ const ManageStock = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             />
           </div>
+          
           <button
             type="submit"
             className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-all duration-200"
