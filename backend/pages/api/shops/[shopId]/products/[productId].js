@@ -26,7 +26,7 @@ async function handler(req, res) {
   switch (req.method) {
     case "PUT":
       try {
-        const { price, stock } = req.body;
+        const { price, cost, stock } = req.body;
         const updateData = {};
 
         // Only allow owners to change the price
@@ -37,6 +37,16 @@ async function handler(req, res) {
               .json({ message: "Only owners can change product prices." });
           }
           updateData.price = price;
+        }
+        
+        // ADD THIS: Logic to update Cost (Security: restrict to owner)
+        if (cost !== undefined) {
+          if (req.user.role !== "owner") {
+            return res
+              .status(403)
+              .json({ message: "Only owners can change product costs." });
+          }
+          updateData.cost = cost;
         }
 
         if (stock !== undefined) {
