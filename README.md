@@ -116,6 +116,7 @@ JWT_SECRET="your_super_secret_jwt_key_here"
 GEMINI_API_KEY="AIzaSy...<your_gemini_api_key>"
 PORT=3001
 FRONTEND_URL="http://localhost:5173"
+BLOB_READ_WRITE_TOKEN="your_vercel_blob_token"
 ```
 
 Seed the Database:
