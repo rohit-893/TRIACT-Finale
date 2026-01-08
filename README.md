@@ -1,164 +1,181 @@
 # TRIACT - AI-Powered Retail Intelligence System
 
-**TRIACT** is a full-stack inventory and business management platform designed for modern retailers. Unlike traditional POS systems, TRIACT leverages **Generative AI (Google Gemini)** and **OCR (Tesseract.js)** to act as an intelligent partner—predicting stockouts, answering complex business questions, and digitizing physical invoices automatically.
+<div align="center">
+
+![React](https://img.shields.io/badge/React-18-blue?logo=react&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?logo=node.js&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-8E75B2?logo=google&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwind-css&logoColor=white)
+
+</div>
+
+---
+
+## Overview
+
+**TRIACT** is a modern, full-stack inventory and business management platform designed to digitize small retail operations. Unlike static POS systems, TRIACT integrates **Generative AI** and **Computer Vision** to act as an intelligent business partner.
+
+It empowers shop owners to:
+
+- **Chat with their Data:** Ask natural language questions about sales, profit, and employee performance.
+- **Predict the Future:** Forecast stockouts days in advance using historical sales velocity.
+- **Automate Entry:** Digitize paper invoices instantly using OCR technology.
 
 ---
 
 ## Key Features
 
-### AI-Driven Intelligence
-* **RAG Chat Assistant:** Talk to your data. Ask *"How much profit did Rahul make today?"* or *"Which snacks are expiring soon?"* The system uses **Retrieval-Augmented Generation** to fetch live DB stats and generate accurate, natural language answers.
-* **Smart Forecasting:** Algorithms analyze the last 90 days of sales velocity to predict exactly when specific products will go out of stock.
-* **OCR Invoice Scanning:** Upload a photo of a supplier invoice; **Tesseract.js** runs locally to extract items, match them against your inventory, and auto-update stock levels.
+### Artificial Intelligence Suite
 
-### Shop Management
-* **Role-Based Access Control (RBAC):** Distinct portals for **Owners** (full control) and **Employees** (POS & sales only).
-* **Interactive Dashboard:** Real-time visualization of Revenue, Profit, and Category performance using **Chart.js**.
-* **Employee Payroll:** Track salaries, payment status (Paid/Due), and calculate labor cost percentages vs. revenue.
+- **RAG Chat Assistant:** Built on **Google Gemini 2.5 Flash**. It uses a **Retrieval-Augmented Generation (RAG)** architecture to fetch real-time database stats (revenue, stock, margins) and provide context-aware business answers in plain English.
+- **Stock Forecasting:** A dedicated algorithm analyzes the last 90 days of `Order` data to calculate average daily sales and predict the exact date a product will go out of stock.
+- **Smart OCR Scanner:** Powered by **Tesseract.js**. Upload an image of a supplier invoice, and the system automatically extracts item names and quantities to update inventory without manual typing.
 
-### Operations & POS
-* **Smart POS:** Fast billing interface with dynamic search.
-* **Automated Invoicing:** Generates professional PDF invoices instantly using **PDFKit**. In production, these are stored via **Vercel Blob**.
-* **Low Stock Alerts:** Real-time notifications when inventory dips below custom thresholds.
+### Comprehensive Dashboard
+
+- **Owner View:** Real-time KPI cards for Revenue, Net Profit, and Units Sold. Includes visual charts for monthly revenue trends and category-wise sales distribution.
+- **Low Stock Alerts:** Automated system notifications trigger when product stock dips below defined thresholds.
+
+### Point of Sale (POS) & Operations
+
+- **Smart Billing:** Fast, searchable product grid for rapid checkout.
+- **PDF Invoicing:** Automatically generates professional PDF invoices using `PDFKit`.
+  - **Dev Mode:** Saves locally to filesystem.
+  - **Prod Mode:** Uploads to **Vercel Blob** storage for permanent hosting.
+- **Employee Management:** Track staff profiles, monthly salaries, and payment status (Paid/Due/Overdue).
 
 ---
 
-## Tech Stack
+## Architecture & Tech Stack
 
-**Frontend (Client)**
-* **Framework:** React (Vite)
-* **Styling:** Tailwind CSS + Framer Motion (for animations)
-* **State/API:** Context API + Axios
-* **Visualization:** Chart.js
-* **OCR Engine:** Tesseract.js
+The application follows a **Decoupled Monolith** architecture where the frontend and backend are separate but designed to work seamlessly together.
 
-**Backend (Server)**
-* **Runtime:** Node.js
-* **Framework:** Next.js (API Routes)
-* **Database:** MongoDB (Mongoose ODM)
-* **Authentication:** JWT (JSON Web Tokens)
-* **AI Integration:** Google Gemini Pro Model (`@google/generative-ai`)
-* **File Handling:** PDFKit, Vercel Blob
+### Frontend (Client)
+
+- **Framework:** React 18 (Vite Build Tool)
+- **Styling:** Tailwind CSS (Utility-first) + Framer Motion (Animations)
+- **State Management:** React Context API + Custom Hooks (`useAuth`)
+- **HTTP Client:** Axios with Interceptors for JWT handling
+- **Visuals:** Chart.js for analytics, Lucide React for iconography
+
+### Backend (Server)
+
+- **Runtime:** Node.js
+- **Framework:** Next.js (Pages Router used as API Server)
+- **Database:** MongoDB Atlas (Mongoose ODM)
+- **Authentication:** JSON Web Tokens (JWT) with custom middleware (`authMiddleware`, `ownerMiddleware`)
+- **AI Engine:** Google Generative AI SDK (`@google/generative-ai`)
+
+---
+
+### Data Flow Diagram (RAG Chat)
+
+```mermaid
+graph LR
+    A[User Question] --> B(Backend API)
+    B --> C{Fetch DB Data}
+    C --> D[Products]
+    C --> E[Orders]
+    C --> F[Employees]
+    D & E & F --> G[Context Construction]
+    G --> H[Gemini API]
+    H --> I[Natural Language Answer]
+    I --> J[Frontend UI]
+```
 
 ---
 
 ## Installation & Setup
 
-Follow these steps to run TRIACT locally.
-
 ### 1. Prerequisites
-* Node.js (v18+)
-* MongoDB Atlas Connection String
-* Google Gemini API Key (Get it from [Google AI Studio](https://aistudio.google.com/))
 
-### 2. Clone Repository
+- Node.js (v18 or higher)
+- MongoDB Atlas Account (Free tier works)
+- Google AI Studio Account (for Gemini API Key)
+
+### 2. Clone the Repository
+
 ```bash
-git clone [https://github.com/your-username/TRIACT.git](https://github.com/your-username/TRIACT.git)
+git clone https://github.com/your-username/TRIACT.git
 cd TRIACT
-
 ```
 
-### 3. Backend Configuration
-
-Navigate to the backend folder and install dependencies:
+### 3. Backend Setup
 
 ```bash
 cd backend
 npm install
-
 ```
 
-Create a `.env` file in the `backend/` root:
+Create a `.env` file in `backend/`:
 
 ```ini
-# Database
-MONGODB_URI="mongodb+srv://<user>:<pass>@cluster.mongodb.net/triact?retryWrites=true&w=majority"
-
-# Security
-JWT_SECRET="super_secret_key_change_this"
-
-# AI Service
-GEMINI_API_KEY="AIzaSy...<your_api_key>"
-
-# App Config
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster.mongodb.net/triact?retryWrites=true&w=majority"
+JWT_SECRET="your_super_secret_jwt_key_here"
+GEMINI_API_KEY="AIzaSy...<your_gemini_api_key>"
 PORT=3001
 FRONTEND_URL="http://localhost:5173"
-
 ```
 
-**Seed the Database:**
-Populate your database with sample products, sales history, and users for testing.
+Seed the Database:
 
 ```bash
 npm run seed
-
 ```
 
-Start the backend server:
+Start Backend:
 
 ```bash
 npm run dev
-# Server runs on http://localhost:3001
-
 ```
 
-### 4. Frontend Configuration
-
-Open a new terminal, navigate to the frontend folder, and install dependencies:
+### 4. Frontend Setup
 
 ```bash
 cd ../frontend
 npm install
-
-```
-
-Start the frontend development server:
-
-```bash
 npm run dev
-# App runs on http://localhost:5173
-
 ```
 
 ---
 
 ## Test Credentials
 
-After running `npm run seed`, you can log in with these pre-configured accounts:
-
-| Role | Email | Password | Features |
-| --- | --- | --- | --- |
-| **Owner** | `owner1@example.com` | `Password123` | Full Dashboard, Settings, Employee Mgmt, AI Chat |
-| **Employee** | `rahul@example.com` | `Password123` | POS, Salary Info, View Invoices |
+| Role     | Email              | Password    | Access Level                            |
+| -------- | ------------------ | ----------- | --------------------------------------- |
+| Owner    | owner1@example.com | Password123 | Full Admin Access, Financials, Settings |
+| Employee | rahul@example.com  | Password123 | POS, Salary View, Inventory View        |
 
 ---
 
-## Project Structure
+## API Reference
 
-```bash
-TRIACT/
-├── backend/
-│   ├── lib/            # DB connection, Auth middleware, Gemini client
-│   ├── models/         # Mongoose Schemas (User, Shop, Product, Order)
-│   ├── pages/api/      # Next.js API Routes (Controllers)
-│   │   ├── auth/       # Login, Register
-│   │   └── shops/      # Main business logic endpoints
-│   └── seed.js         # Database seeder script
-├── frontend/
-│   ├── src/
-│   │   ├── components/ # Reusable UI (Cards, Charts, Modals)
-│   │   ├── context/    # Global Auth State
-│   │   ├── pages/      # Views (Dashboard, Chat, InvoiceScan)
-│   │   └── services/   # Axios API wrappers
+| Method | Endpoint                   | Description                 | Access |
+| ------ | -------------------------- | --------------------------- | ------ |
+| POST   | /api/auth/login            | Authenticate user & get JWT | Public |
+| GET    | /api/shops/:id/dashboard   | Fetch KPI stats             | Owner  |
+| POST   | /api/shops/:id/ai/chat     | Gemini RAG Chat             | Auth   |
+| POST   | /api/shops/:id/orders      | Create order & PDF          | Auth   |
+| POST   | /api/scan                  | OCR Scan                    | Auth   |
+| GET    | /api/shops/:id/ai/forecast | Stock prediction            | Owner  |
 
-```
+---
 
-## AI Architecture
+## Troubleshooting
 
-TRIACT uses a **RAG (Retrieval-Augmented Generation)** architecture for its chat feature:
+- Ensure backend runs on port 3001
+- FRONTEND_URL must match Vite URL
+- MongoDB Atlas IP must be whitelisted
+- GEMINI_API_KEY must have quota
 
-1. **User Query:** *"How are my beverage sales?"*
-2. **Data Fetching:** Backend parallel-fetches summarized sales data, recent orders, and stock levels from MongoDB.
-3. **Context Construction:** Data is formatted into a optimized text prompt (reducing token usage).
-4. **Inference:** Google Gemini analyzes the context + user query.
-5. **Response:** The AI returns a plain-text summary (e.g., *"Beverages revenue is ₹12,000 this month, up 5%..."*) which is displayed in the UI.
+---
+
+## Contributing
+
+- Fork the project
+- Create feature branch
+- Commit changes
+- Push and open PR
+
+---
